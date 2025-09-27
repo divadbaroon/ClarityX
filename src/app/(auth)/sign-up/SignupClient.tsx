@@ -67,34 +67,6 @@ export default function SignupClient({ initialMessage }: { initialMessage?: stri
     }
   }
 
-  async function handleLogin(formData: FormData) {
-    setIsLoading(true)
-    setMessage("")
-
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-
-    try {
-      const supabase = createClient()
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        setMessage(error.message)
-      } else {
-        router.push("/")
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
-      setMessage(errorMessage)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   async function resendVerificationEmail() {
     if (!userEmail) return
 
