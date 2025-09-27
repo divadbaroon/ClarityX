@@ -58,8 +58,9 @@ export default function SignupClient({ initialMessage }: { initialMessage?: stri
         // User is already verified (shouldn't happen on signup, but just in case)
         router.push("/")
       }
-    } catch (error: any) {
-      setMessage(error.message || "An unexpected error occurred")
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
+      setMessage(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -85,8 +86,9 @@ export default function SignupClient({ initialMessage }: { initialMessage?: stri
       } else {
         router.push("/")
       }
-    } catch (error: any) {
-      setMessage(error.message || "An unexpected error occurred")
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
+      setMessage(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -110,8 +112,9 @@ export default function SignupClient({ initialMessage }: { initialMessage?: stri
       } else {
         setMessage("Verification email sent!")
       }
-    } catch (error: any) {
-      setMessage(error.message || "Failed to resend email")
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to resend email"
+      setMessage(errorMessage)
     }
   }
 
