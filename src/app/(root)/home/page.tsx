@@ -3,9 +3,17 @@
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import Image from "next/image"
-import { Menu, X } from "lucide-react"
-import { useState } from "react"
 import Link from "next/link"
+
+interface User {
+  email?: string
+  id: string
+  name?: string
+}
+
+type HomePageProps = {
+  user: User | null
+}
 
 const fadeInUp = {
   initial: { opacity: 0, y: 60 },
@@ -33,150 +41,9 @@ const staggerContainer = {
   },
 }
 
-export default function HomePage() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-
-  const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId)
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" })
-    }
-    setIsMenuOpen(false) // Close mobile menu after clicking
-  }
-
+export default function HomePage({ user }: HomePageProps) {
   return (
     <div className="min-h-screen bg-white">
-      <motion.nav
-        className="fixed top-0 left-0 right-0 z-50"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-      >
-        <div className="bg-white/90 backdrop-blur-xl border-b border-gray-200 px-6 py-4 shadow-sm">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => scrollToSection("hero")}
-                className="text-xl font-bold text-black hover:opacity-80 transition-all duration-300 cursor-pointer hover:scale-105 transform"
-              >
-                Clarity
-                <span
-                  className="text-white font-bold mx-1 hover:scale-110 transition-transform duration-300 inline-block"
-                  style={{ WebkitTextStroke: "1px black" }}
-                >
-                  X
-                </span>
-              </button>
-            </div>
-
-            {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center space-x-8">
-              <button
-                onClick={() => scrollToSection("features")}
-                className="text-sm text-gray-600 hover:text-black transition-all duration-300 font-medium cursor-pointer hover:scale-105 transform relative group"
-              >
-                Features
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-black transition-all duration-300 group-hover:w-full"></span>
-              </button>
-              <button
-                onClick={() => scrollToSection("demo")}
-                className="text-sm text-gray-600 hover:text-black transition-all duration-300 font-medium cursor-pointer hover:scale-105 transform relative group"
-              >
-                Demo
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-black transition-all duration-300 group-hover:w-full"></span>
-              </button>
-              <button
-                onClick={() => scrollToSection("contact")}
-                className="text-sm text-gray-600 hover:text-black transition-all duration-300 font-medium cursor-pointer hover:scale-105 transform relative group"
-              >
-                Contact
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-black transition-all duration-300 group-hover:w-full"></span>
-              </button>
-            </div>
-
-            {/* Desktop CTA */}
-            <div className="hidden lg:flex items-center space-x-4">
-              <Link href="/login">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-700 hover:text-black hover:bg-gray-100 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 cursor-pointer hover:scale-105 transform hover:shadow-md"
-                >
-                  Sign In
-                </Button>
-              </Link>
-              <Link href="/sign-up">
-                <Button
-                  size="sm"
-                  className="bg-black text-white hover:bg-gray-800 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 hover:scale-105 transform cursor-pointer hover:shadow-lg"
-                >
-                  Get Started
-                </Button>
-              </Link>
-            </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              className="lg:hidden p-2 rounded-full hover:bg-gray-100 transition-all duration-300 cursor-pointer hover:scale-110 transform"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {isMenuOpen && (
-          <motion.div
-            className="lg:hidden bg-white/95 backdrop-blur-xl border-b border-gray-200 px-6 py-4 shadow-lg"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="flex flex-col space-y-4">
-              <button
-                onClick={() => scrollToSection("features")}
-                className="text-gray-600 hover:text-black transition-all duration-300 font-medium py-2 px-3 rounded-lg hover:bg-gray-50 text-left cursor-pointer hover:scale-105 transform"
-              >
-                Features
-              </button>
-              <button
-                onClick={() => scrollToSection("demo")}
-                className="text-gray-600 hover:text-black transition-all duration-300 font-medium py-2 px-3 rounded-lg hover:bg-gray-50 text-left cursor-pointer hover:scale-105 transform"
-              >
-                Demo
-              </button>
-              <button
-                onClick={() => scrollToSection("contact")}
-                className="text-gray-600 hover:text-black transition-all duration-300 font-medium py-2 px-3 rounded-lg hover:bg-gray-50 text-left cursor-pointer hover:scale-105 transform"
-              >
-                Contact
-              </button>
-              <div className="flex flex-col space-y-3 pt-4 border-t border-gray-100">
-                <Link href="/login">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-700 hover:text-black hover:bg-gray-100 rounded-full font-medium justify-start cursor-pointer hover:scale-105 transform transition-all duration-300 w-full"
-                  >
-                    Sign In
-                  </Button>
-                </Link>
-                <Link href="/sign-up">
-                  <Button
-                    size="sm"
-                    className="bg-black text-white hover:bg-gray-800 rounded-full font-medium cursor-pointer hover:scale-105 transform transition-all duration-300"
-                  >
-                    Get Started
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </motion.nav>
 
       {/* Hero Section */}
       <section id="hero" className="min-h-screen flex items-center justify-center px-6 pt-20">
@@ -204,17 +71,27 @@ export default function HomePage() {
           </motion.h2>
           <motion.div variants={fadeInUp}>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/sign-up">
-                <Button className="bg-black text-white hover:bg-gray-800 rounded-full px-12 py-4 text-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 transform cursor-pointer">
-                  Get Started
-                </Button>
-              </Link>
-              <Button
-                variant="outline"
-                className="border-2 border-gray-300 text-gray-700 hover:text-gray-700 hover:bg-gray-100 hover:border-gray-400 rounded-full px-12 py-4 text-xl font-semibold transition-all duration-300 hover:scale-105 transform bg-transparent cursor-pointer hover:shadow-md"
-              >
-                View Demo
-              </Button>
+              {user ? (
+                <Link href="/dashboard">
+                  <Button className="bg-black text-white hover:bg-gray-800 rounded-full px-12 py-4 text-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 transform cursor-pointer">
+                    Go to Dashboard
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link href="/sign-up">
+                    <Button className="bg-black text-white hover:bg-gray-800 rounded-full px-12 py-4 text-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 transform cursor-pointer">
+                      Get Started
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    className="border-2 border-gray-300 text-gray-700 hover:text-gray-700 hover:bg-gray-100 hover:border-gray-400 rounded-full px-12 py-4 text-xl font-semibold transition-all duration-300 hover:scale-105 transform bg-transparent cursor-pointer hover:shadow-md"
+                  >
+                    View Demo
+                  </Button>
+                </>
+              )}
             </div>
           </motion.div>
         </motion.div>
