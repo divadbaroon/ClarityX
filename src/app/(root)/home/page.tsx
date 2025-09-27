@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import Image from "next/image"
 import { Menu, X } from "lucide-react"
 import { useState } from "react"
+import Link from "next/link"
 
 const fadeInUp = {
   initial: { opacity: 0, y: 60 },
@@ -96,19 +97,23 @@ export default function HomePage() {
 
             {/* Desktop CTA */}
             <div className="hidden lg:flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-gray-700 hover:text-black hover:bg-gray-100 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 cursor-pointer hover:scale-105 transform hover:shadow-md"
-              >
-                Sign In
-              </Button>
-              <Button
-                size="sm"
-                className="bg-black text-white hover:bg-gray-800 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 hover:scale-105 transform cursor-pointer hover:shadow-lg"
-              >
-                Get Started
-              </Button>
+              <Link href="/login">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-700 hover:text-black hover:bg-gray-100 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 cursor-pointer hover:scale-105 transform hover:shadow-md"
+                >
+                  Sign In
+                </Button>
+              </Link>
+              <Link href="/sign-up">
+                <Button
+                  size="sm"
+                  className="bg-black text-white hover:bg-gray-800 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 hover:scale-105 transform cursor-pointer hover:shadow-lg"
+                >
+                  Get Started
+                </Button>
+              </Link>
             </div>
 
             {/* Mobile Menu Button */}
@@ -150,19 +155,23 @@ export default function HomePage() {
                 Contact
               </button>
               <div className="flex flex-col space-y-3 pt-4 border-t border-gray-100">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-700 hover:text-black hover:bg-gray-100 rounded-full font-medium justify-start cursor-pointer hover:scale-105 transform transition-all duration-300"
-                >
-                  Sign In
-                </Button>
-                <Button
-                  size="sm"
-                  className="bg-black text-white hover:bg-gray-800 rounded-full font-medium cursor-pointer hover:scale-105 transform transition-all duration-300"
-                >
-                  Get Started
-                </Button>
+                <Link href="/login">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-700 hover:text-black hover:bg-gray-100 rounded-full font-medium justify-start cursor-pointer hover:scale-105 transform transition-all duration-300 w-full"
+                  >
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/sign-up">
+                  <Button
+                    size="sm"
+                    className="bg-black text-white hover:bg-gray-800 rounded-full font-medium cursor-pointer hover:scale-105 transform transition-all duration-300"
+                  >
+                    Get Started
+                  </Button>
+                </Link>
               </div>
             </div>
           </motion.div>
@@ -195,9 +204,11 @@ export default function HomePage() {
           </motion.h2>
           <motion.div variants={fadeInUp}>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button className="bg-black text-white hover:bg-gray-800 rounded-full px-12 py-4 text-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 transform cursor-pointer">
-                Get Started
-              </Button>
+              <Link href="/sign-up">
+                <Button className="bg-black text-white hover:bg-gray-800 rounded-full px-12 py-4 text-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 transform cursor-pointer">
+                  Get Started
+                </Button>
+              </Link>
               <Button
                 variant="outline"
                 className="border-2 border-gray-300 text-gray-700 hover:text-gray-700 hover:bg-gray-100 hover:border-gray-400 rounded-full px-12 py-4 text-xl font-semibold transition-all duration-300 hover:scale-105 transform bg-transparent cursor-pointer hover:shadow-md"
