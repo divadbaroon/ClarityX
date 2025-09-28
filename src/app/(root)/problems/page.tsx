@@ -233,7 +233,7 @@ export default function LeetCodeDashboard() {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <div className="flex-1 min-w-0">
-                          <Link href={`/problems/${problem.id}`} className="block group">
+                          <Link href={`/workspace/${problem.id}`} className="block group">
                             <h3 className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors duration-150">
                               {problem.question_id}. {formatTitle(problem.task_id)}
                             </h3>
@@ -297,7 +297,7 @@ export default function LeetCodeDashboard() {
                         className="border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-700 hover:text-gray-900 transition-all duration-150 bg-transparent"
                         asChild
                       >
-                        <Link href={`/problems/${problem.id}`}>Solve</Link>
+                        <Link href={`/workspace/${problem.id}`}>Solve</Link>
                       </Button>
                     </td>
                   </tr>
