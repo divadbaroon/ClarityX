@@ -41,8 +41,8 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
     setIsMenuOpen(false)
   }
 
-  // Only show navigation links on the home page
   const isHomePage = pathname === "/" || pathname === "/home"
+  const isProblemsSection = pathname?.startsWith('/problems')
 
   return (
     <nav
@@ -50,111 +50,139 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
         isScrolled ? "bg-white/90 backdrop-blur-xl shadow-sm" : "bg-white/90 backdrop-blur-xl"
       } border-b border-gray-200`}
     >
-      <div className="px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <Link
-              href="/"
-              className="text-xl font-bold text-black hover:opacity-80 transition-opacity duration-300 cursor-pointer"
-            >
-              Clarity
-              <span
-                className="text-white font-bold mx-1"
-                style={{ WebkitTextStroke: "1px black" }}
+      <div className="px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className={`flex items-center justify-between ${isProblemsSection ? 'py-4' : 'py-4'}`}>
+            {/* Logo and Problems Navigation */}
+            <div className="flex items-center space-x-6">
+              <Link
+                href="/"
+                className="text-xl font-bold text-black hover:opacity-80 transition-all duration-300"
               >
-                X
-              </span>
-            </Link>
-          </div>
-
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center space-x-8">
-            {isHomePage && (
-              <>
-                <button
-                  onClick={() => scrollToSection("features")}
-                  className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
+                Clarity
+                <span
+                  className="text-white font-bold mx-1 hover:scale-110 transition-transform duration-300 inline-block"
+                  style={{ WebkitTextStroke: "1px black" }}
                 >
-                  Features
-                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
-                </button>
-                <button
-                  onClick={() => scrollToSection("demo")}
-                  className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
-                >
-                  Demo
-                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
-                </button>
-                <button
-                  onClick={() => scrollToSection("contact")}
-                  className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
-                >
-                  Contact
-                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Desktop CTA or Account Icon */}
-          <div className="hidden lg:flex items-center space-x-4">
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="rounded-full p-1.5 transition-colors duration-200 hover:bg-gray-100 focus:outline-none focus-visible:ring-0 data-[state=open]:bg-gray-100 cursor-pointer"
-                  >
-                    <Avatar className="h-8 w-8 pointer-events-none">
-                      <AvatarImage src="/assets/Icons/accountIcon.png" alt="Account" />
-                    </Avatar>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem className="flex items-center gap-2 focus:bg-gray-100 focus:text-foreground data-[highlighted]:bg-gray-100 data-[highlighted]:text-foreground cursor-pointer">
-                    <div className="flex flex-col">
-                      <p className="text-sm font-medium leading-none">{user.email ? user.email : "Guest Account"}</p>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="focus:bg-gray-100 focus:text-foreground data-[highlighted]:bg-gray-100 data-[highlighted]:text-foreground cursor-pointer">
-                    <form action="/home" method="POST" className="w-full">
-                      <button className="w-full text-left" formAction={signOut}>
-                        Sign Out
+                  X
+                </span>
+              </Link>
+              
+              {/* Only show Problems navigation when authenticated */}
+              {user && (
+                <>
+                  <div className="h-6 w-px bg-gray-300"></div>
+                  <nav className="hidden lg:flex space-x-8">
+                    <Link
+                      href="/problems"
+                      className={`text-sm font-medium ${
+                        pathname === '/problems' 
+                          ? 'text-black border-b-2 border-black' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Problems
+                    </Link>
+                    {isProblemsSection && (
+                      <button 
+                        className="text-sm font-medium text-gray-500 hover:text-gray-700 cursor-pointer"
+                      >
+                        Progress
                       </button>
-                    </form>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <>
-                <Link href="/login">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-700 hover:text-black hover:bg-gray-100 rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 cursor-pointer"
-                  >
-                    Sign In
-                  </Button>
-                </Link>
-                <Link href="/sign-up">
-                  <Button
-                    size="sm"
-                    className="bg-black text-white hover:bg-gray-800 rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 cursor-pointer shadow-md hover:shadow-lg"
-                  >
-                    Get Started
-                  </Button>
-                </Link>
-              </>
-            )}
-          </div>
+                    )}
+                  </nav>
+                </>
+              )}
+            </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="lg:hidden p-2 rounded-full hover:bg-gray-100 transition-all duration-200 cursor-pointer"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+            {/* Desktop Navigation - Home Page */}
+            <div className="hidden lg:flex items-center space-x-8">
+              {isHomePage && (
+                <>
+                  <button
+                    onClick={() => scrollToSection("features")}
+                    className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
+                  >
+                    Features
+                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
+                  </button>
+                  <button
+                    onClick={() => scrollToSection("demo")}
+                    className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
+                  >
+                    Demo
+                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
+                  </button>
+                  <button
+                    onClick={() => scrollToSection("contact")}
+                    className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
+                  >
+                    Contact
+                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Desktop CTA or Account Icon */}
+            <div className="hidden lg:flex items-center space-x-4">
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="rounded-full p-1.5 transition-colors duration-200 hover:bg-gray-100 focus:outline-none focus-visible:ring-0 data-[state=open]:bg-gray-100 cursor-pointer"
+                    >
+                      <Avatar className="h-8 w-8 pointer-events-none">
+                        <AvatarImage src="/assets/Icons/accountIcon.png" alt="Account" />
+                      </Avatar>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem className="flex items-center gap-2 focus:bg-gray-100 focus:text-foreground data-[highlighted]:bg-gray-100 data-[highlighted]:text-foreground cursor-pointer">
+                      <div className="flex flex-col">
+                        <p className="text-sm font-medium leading-none">{user.email ? user.email : "Guest Account"}</p>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="focus:bg-gray-100 focus:text-foreground data-[highlighted]:bg-gray-100 data-[highlighted]:text-foreground cursor-pointer">
+                      <form action="/home" method="POST" className="w-full">
+                        <button className="w-full text-left" formAction={signOut}>
+                          Sign Out
+                        </button>
+                      </form>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-700 hover:text-black hover:bg-gray-100 rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 cursor-pointer"
+                    >
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link href="/sign-up">
+                    <Button
+                      size="sm"
+                      className="bg-black text-white hover:bg-gray-800 rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 cursor-pointer shadow-md hover:shadow-lg"
+                    >
+                      Get Started
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              className="lg:hidden p-2 rounded-full hover:bg-gray-100 transition-all duration-200 cursor-pointer"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -162,6 +190,32 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
       {isMenuOpen && (
         <div className="lg:hidden bg-white/95 backdrop-blur-xl border-b border-gray-200 px-6 py-4 shadow-lg">
           <div className="flex flex-col space-y-4">
+            {user && (
+              <>
+                <Link
+                  href="/problems"
+                  className={`font-medium py-2 px-3 rounded-lg text-left ${
+                    pathname === '/problems' 
+                      ? 'text-black bg-gray-100' 
+                      : 'text-gray-600 hover:text-black hover:bg-gray-50'
+                  }`}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Problems
+                </Link>
+                {isProblemsSection && (
+                  <>
+                    <button 
+                      className="text-gray-400 font-medium py-2 px-3 rounded-lg text-left cursor-not-allowed"
+                      disabled
+                    >
+                      Progress
+                    </button>
+                    <div className="border-t border-gray-100"></div>
+                  </>
+                )}
+              </>
+            )}
             {isHomePage && (
               <>
                 <button
