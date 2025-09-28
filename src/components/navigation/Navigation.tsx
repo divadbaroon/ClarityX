@@ -143,7 +143,7 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
                     </DropdownMenuItem>
                     <DropdownMenuItem className="focus:bg-gray-100 focus:text-foreground data-[highlighted]:bg-gray-100 data-[highlighted]:text-foreground cursor-pointer">
                       <form action="/home" method="POST" className="w-full">
-                        <button className="w-full text-left" formAction={signOut}>
+                        <button className="w-full text-left cursor-pointer" formAction={signOut}>
                           Sign Out
                         </button>
                       </form>
