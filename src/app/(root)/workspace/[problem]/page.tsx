@@ -1,13 +1,13 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Play, User, X, Circle } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { keymap } from "@codemirror/view"
+import { keymap } from "@codemirror/view"  
 import { EditorView, basicSetup } from "codemirror"
 import { EditorState } from "@codemirror/state"
 import type { ViewUpdate } from "@codemirror/view"
@@ -22,7 +22,8 @@ import { useWorkspaceContext } from '@/app/providers/WorkspaceProvider'
 
 export default function LeetCodeIDE() {
   const params = useParams()
-
+  
+  // Get values from context
   const {
     problem,
     setProblem,
@@ -40,44 +41,64 @@ export default function LeetCodeIDE() {
     setLeftPanelWidth,
     terminalHeight,
     setTerminalHeight,
-    setLatestCode,
-    getLatestCode,
+    setLatestCode,  
+    getLatestCode,  
   } = useWorkspaceContext()
 
-  const [code, setCode] = useState(() => getLatestCode() || "")
+  // Initialize local code with latest saved or starter code
+  const [code, setCode] = useState(() => {
+    const saved = getLatestCode()
+    return saved || ""
+  })
+  
   const [loading, setLoading] = useState(true)
+  const [triggerRun, setTriggerRun] = useState(false)
   const [isDraggingHorizontal, setIsDraggingHorizontal] = useState(false)
   const [isDraggingVertical, setIsDraggingVertical] = useState(false)
+
+  // When problem loads, use starter code if no saved code exists
+  useEffect(() => {
+    if (problem?.starter_code && !getLatestCode()) {
+      setCode(problem.starter_code)
+      setLatestCode(problem.starter_code)
+    }
+  }, [problem, getLatestCode, setLatestCode])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Pull directly from the CodeMirror buffer 
+      const snapshot = editorViewRef.current?.state.doc.toString() ?? code
+      console.log("[IDE] autosave snapshot:", snapshot.slice(0, 200), "… len=", snapshot.length)
+
+      // Save to context so WorkspaceProvider stays in sync
+      setLatestCode(snapshot)
+    }, 3000) 
+
+    return () => clearInterval(interval)
+  }, [setLatestCode, code])
+
 
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
 
-  // Keep last autosaved snapshot to reduce noise
-  const lastSnapshotRef = useRef<string>("")
-
-  const languageExtension = useMemo(() => {
-    switch (language) {
-      case "Java": return java()
-      case "Python": return python()
-      case "JavaScript": return javascript()
-      default: return python()
+  useEffect(() => {
+    if (params.problem) {
+      fetchProblem(params.problem as string)
     }
-  }, [language])
+  }, [params.problem])
 
-  const fetchProblem = useCallback(async (problemId: string) => {
+  const fetchProblem = async (problemId: string) => {
     try {
       setLoading(true)
       const { problem: fetchedProblem, error } = await fetchProblemById(problemId)
-
+      
       if (error || !fetchedProblem) {
         console.error("Error loading problem:", error)
         setProblem(null)
       } else {
         setProblem(fetchedProblem)
-        // Initialize editor to starter code (local state will sync via updateListener)
         setCode(fetchedProblem.starter_code)
-        setLatestCode(fetchedProblem.starter_code)
       }
     } catch (error) {
       console.error("Error loading problem:", error)
@@ -85,150 +106,28 @@ export default function LeetCodeIDE() {
     } finally {
       setLoading(false)
     }
-  }, [setProblem, setLatestCode])
+  }
 
-  // Kick off fetch when route param changes
-  useEffect(() => {
-    if (params.problem) {
-      fetchProblem(params.problem as string)
+  const runTests = async () => {
+    if (isRunning) return; // Prevent double execution
+    
+    if (language === "Python") {
+      setIsRunning(true)
+      setTriggerRun(!triggerRun)
+    } else {
+      setIsRunning(true)
+      setTerminalOutput("Code execution for Java and JavaScript coming soon...")
+      setTimeout(() => {
+        setIsRunning(false)
+      }, 1500)
     }
-  }, [params.problem, fetchProblem])
-
-  // Initialize CodeMirror editor 
-  useEffect(() => {
-    if (editorRef.current && !editorViewRef.current) {
-      const initialDoc = problem?.starter_code ?? code ?? ""
-      const state = EditorState.create({
-        doc: initialDoc,
-        extensions: [
-          basicSetup,
-          languageExtension,
-          indentUnit.of("  "),
-          keymap.of([indentWithTab]),
-          EditorView.updateListener.of((update: ViewUpdate) => {
-            if (update.docChanged) {
-              const current = update.state.doc.toString()
-              setCode(current) // keep React state in sync
-            }
-          }),
-          EditorView.theme({
-            "&": { height: "100%", fontSize: "14px", color: "#1f2937" },
-            ".cm-content": { padding: "16px", minHeight: "100%", color: "#1f2937" },
-            ".cm-focused": { outline: "none" },
-            ".cm-editor": { height: "100%", backgroundColor: "#ffffff" },
-            ".cm-scroller": { height: "100%" },
-            ".cm-line": { color: "#1f2937" },
-            ".cm-cursor": { borderLeftColor: "#1f2937" },
-            ".cm-selectionBackground": { backgroundColor: "#e5e7eb" },
-            ".cm-keyword": { color: "#7c3aed" },
-            ".cm-string": { color: "#059669" },
-            ".cm-comment": { color: "#6b7280" },
-            ".cm-number": { color: "#dc2626" },
-            ".cm-operator": { color: "#1f2937" },
-            ".cm-punctuation": { color: "#1f2937" },
-            ".cm-bracket": { color: "#1f2937" },
-            ".cm-tag": { color: "#dc2626" },
-            ".cm-attribute": { color: "#7c3aed" },
-            ".cm-variable": { color: "#1f2937" },
-            ".cm-type": { color: "#0891b2" },
-            ".cm-function": { color: "#0891b2" },
-          }),
-        ],
-      })
-
-      editorViewRef.current = new EditorView({ state, parent: editorRef.current })
-
-      // Log initial buffer (closest to source)
-      const initialSnap = editorViewRef.current.state.doc.toString()
-      lastSnapshotRef.current = initialSnap
-      console.log("[IDE] editor buffer (initial):", initialSnap.slice(0, 200), "… len=", initialSnap.length)
-    }
-
-    return () => {
-      if (editorViewRef.current) {
-        editorViewRef.current.destroy()
-        editorViewRef.current = null
-      }
-    }
-  // (we rebuild properly in another effect below)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorRef])
-
-  // If a problem arrives and the editor is empty, inject starter code
-  useEffect(() => {
-    if (editorViewRef.current && problem?.starter_code) {
-      const currentDoc = editorViewRef.current.state.doc.toString()
-      if (!currentDoc) {
-        const tr = editorViewRef.current.state.update({
-          changes: { from: 0, to: 0, insert: problem.starter_code }
-        })
-        editorViewRef.current.dispatch(tr)
-        setCode(problem.starter_code)
-        setLatestCode(problem.starter_code)
-      }
-    }
-  }, [problem, setLatestCode])
-
-  // Reconfigure editor when language changes (preserve content)
-  useEffect(() => {
-    if (!editorViewRef.current) return
-    const currentDoc = editorViewRef.current.state.doc.toString()
-    const newState = EditorState.create({
-      doc: currentDoc,
-      extensions: [
-        basicSetup,
-        languageExtension,
-        indentUnit.of("  "),
-        keymap.of([indentWithTab]),
-        EditorView.updateListener.of((update: ViewUpdate) => {
-          if (update.docChanged) {
-            const current = update.state.doc.toString()
-            setCode(current)
-          }
-        }),
-        EditorView.theme({
-          "&": { height: "100%", fontSize: "14px", color: "#1f2937" },
-          ".cm-content": { padding: "16px", minHeight: "100%", color: "#1f2937" },
-          ".cm-focused": { outline: "none" },
-          ".cm-editor": { height: "100%", backgroundColor: "#ffffff" },
-          ".cm-scroller": { height: "100%" },
-          ".cm-line": { color: "#1f2937" },
-          ".cm-cursor": { borderLeftColor: "#1f2937" },
-          ".cm-selectionBackground": { backgroundColor: "#e5e7eb" },
-          ".cm-keyword": { color: "#7c3aed" },
-          ".cm-string": { color: "#059669" },
-          ".cm-comment": { color: "#6b7280" },
-          ".cm-number": { color: "#dc2626" },
-          ".cm-operator": { color: "#1f2937" },
-          ".cm-punctuation": { color: "#1f2937" },
-          ".cm-bracket": { color: "#1f2937" },
-          ".cm-tag": { color: "#dc2626" },
-          ".cm-attribute": { color: "#7c3aed" },
-          ".cm-variable": { color: "#1f2937" },
-          ".cm-type": { color: "#0891b2" },
-          ".cm-function": { color: "#0891b2" },
-        }),
-      ],
-    })
-    editorViewRef.current.setState(newState)
-  }, [languageExtension])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const snapshot = editorViewRef.current?.state.doc.toString() ?? code
-      if (snapshot !== lastSnapshotRef.current) {
-        console.log("[IDE] autosave snapshot:", snapshot.slice(0, 200), "… len=", snapshot.length)
-        lastSnapshotRef.current = snapshot
-        setLatestCode(snapshot)
-      }
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [setLatestCode, code])
+  }
 
   const handleMouseDownHorizontal = (e: React.MouseEvent) => {
     e.preventDefault()
     setIsDraggingHorizontal(true)
   }
+
   const handleMouseDownVertical = (e: React.MouseEvent) => {
     e.preventDefault()
     setIsDraggingVertical(true)
@@ -237,24 +136,29 @@ export default function LeetCodeIDE() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingHorizontal && containerRef.current) {
-        const r = containerRef.current.getBoundingClientRect()
-        setLeftPanelWidth(Math.max(200, Math.min(600, e.clientX - r.left)))
+        const containerRect = containerRef.current.getBoundingClientRect()
+        const newWidth = Math.max(200, Math.min(600, e.clientX - containerRect.left))
+        setLeftPanelWidth(newWidth)
       }
       if (isDraggingVertical && containerRef.current) {
-        const r = containerRef.current.getBoundingClientRect()
-        setTerminalHeight(Math.max(100, r.bottom - e.clientY))
+        const containerRect = containerRef.current.getBoundingClientRect()
+        const newHeight = Math.max(100, containerRect.bottom - e.clientY)
+        setTerminalHeight(newHeight)
       }
     }
+
     const handleMouseUp = () => {
       setIsDraggingHorizontal(false)
       setIsDraggingVertical(false)
     }
+
     if (isDraggingHorizontal || isDraggingVertical) {
       document.addEventListener("mousemove", handleMouseMove)
       document.addEventListener("mouseup", handleMouseUp)
       document.body.style.cursor = isDraggingHorizontal ? "col-resize" : "row-resize"
       document.body.style.userSelect = "none"
     }
+
     return () => {
       document.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("mouseup", handleMouseUp)
@@ -263,21 +167,221 @@ export default function LeetCodeIDE() {
     }
   }, [isDraggingHorizontal, isDraggingVertical, setLeftPanelWidth, setTerminalHeight])
 
-  const runTests = async () => {
-    if (isRunning) return
-    const snapshot = editorViewRef.current?.state.doc.toString() ?? code
-    setCode(snapshot)
-    setLatestCode(snapshot)
-    console.log("[IDE] runTests() snapshot:", snapshot.slice(0, 200), "… len=", snapshot.length)
-
-    if (language === "Python") {
-      setIsRunning(true)
-    } else {
-      setIsRunning(true)
-      setTerminalOutput("Code execution for Java and JavaScript coming soon...")
-      setTimeout(() => setIsRunning(false), 1500)
+  const getLanguageExtension = (lang: string) => {
+    switch (lang) {
+      case "Java":
+        return java()
+      case "Python":
+        return python()
+      case "JavaScript":
+        return javascript()
+      default:
+        return python()
     }
   }
+
+  // Initialize editor only once
+  useEffect(() => {
+    if (editorRef.current && !editorViewRef.current) {
+      const state = EditorState.create({
+        doc: problem?.starter_code || "",
+        extensions: [
+          basicSetup,
+          getLanguageExtension(language),
+          indentUnit.of("  "),
+          keymap.of([indentWithTab]),
+          EditorView.updateListener.of((update: ViewUpdate) => {
+            if (update.docChanged) {
+              setCode(update.state.doc.toString())
+            }
+          }),
+          EditorView.theme({
+            "&": {
+              height: "100%",
+              fontSize: "14px",
+              color: "#1f2937",
+            },
+            ".cm-content": {
+              padding: "16px",
+              minHeight: "100%",
+              color: "#1f2937",
+            },
+            ".cm-focused": {
+              outline: "none",
+            },
+            ".cm-editor": {
+              height: "100%",
+              backgroundColor: "#ffffff",
+            },
+            ".cm-scroller": {
+              height: "100%",
+            },
+            ".cm-line": {
+              color: "#1f2937",
+            },
+            ".cm-cursor": {
+              borderLeftColor: "#1f2937",
+            },
+            ".cm-selectionBackground": {
+              backgroundColor: "#e5e7eb",
+            },
+            ".cm-keyword": {
+              color: "#7c3aed",
+            },
+            ".cm-string": {
+              color: "#059669",
+            },
+            ".cm-comment": {
+              color: "#6b7280",
+            },
+            ".cm-number": {
+              color: "#dc2626",
+            },
+            ".cm-operator": {
+              color: "#1f2937",
+            },
+            ".cm-punctuation": {
+              color: "#1f2937",
+            },
+            ".cm-bracket": {
+              color: "#1f2937",
+            },
+            ".cm-tag": {
+              color: "#dc2626",
+            },
+            ".cm-attribute": {
+              color: "#7c3aed",
+            },
+            ".cm-variable": {
+              color: "#1f2937",
+            },
+            ".cm-type": {
+              color: "#0891b2",
+            },
+            ".cm-function": {
+              color: "#0891b2",
+            },
+          }),
+        ],
+      })
+
+      editorViewRef.current = new EditorView({
+        state,
+        parent: editorRef.current,
+      })
+    }
+
+    return () => {
+      if (editorViewRef.current) {
+        editorViewRef.current.destroy()
+        editorViewRef.current = null
+      }
+    }
+  }, [problem])
+
+  // Update editor content when code changes from fetch
+  useEffect(() => {
+    if (editorViewRef.current && problem?.starter_code && !code) {
+      const transaction = editorViewRef.current.state.update({
+        changes: {
+          from: 0,
+          to: editorViewRef.current.state.doc.length,
+          insert: problem.starter_code
+        }
+      })
+      editorViewRef.current.dispatch(transaction)
+      setCode(problem.starter_code)
+    }
+  }, [problem?.starter_code, code])
+
+  // Handle language changes
+  useEffect(() => {
+    if (editorViewRef.current && problem) {
+      const currentDoc = editorViewRef.current.state.doc.toString()
+      const newState = EditorState.create({
+        doc: currentDoc,
+        extensions: [
+          basicSetup,
+          getLanguageExtension(language),
+          indentUnit.of("  "),
+          keymap.of([indentWithTab]),
+          EditorView.updateListener.of((update: ViewUpdate) => {
+            if (update.docChanged) {
+              setCode(update.state.doc.toString())
+            }
+          }),
+          EditorView.theme({
+            "&": {
+              height: "100%",
+              fontSize: "14px",
+              color: "#1f2937",
+            },
+            ".cm-content": {
+              padding: "16px",
+              minHeight: "100%",
+              color: "#1f2937",
+            },
+            ".cm-focused": {
+              outline: "none",
+            },
+            ".cm-editor": {
+              height: "100%",
+              backgroundColor: "#ffffff",
+            },
+            ".cm-scroller": {
+              height: "100%",
+            },
+            ".cm-line": {
+              color: "#1f2937",
+            },
+            ".cm-cursor": {
+              borderLeftColor: "#1f2937",
+            },
+            ".cm-selectionBackground": {
+              backgroundColor: "#e5e7eb",
+            },
+            ".cm-keyword": {
+              color: "#7c3aed",
+            },
+            ".cm-string": {
+              color: "#059669",
+            },
+            ".cm-comment": {
+              color: "#6b7280",
+            },
+            ".cm-number": {
+              color: "#dc2626",
+            },
+            ".cm-operator": {
+              color: "#1f2937",
+            },
+            ".cm-punctuation": {
+              color: "#1f2937",
+            },
+            ".cm-bracket": {
+              color: "#1f2937",
+            },
+            ".cm-tag": {
+              color: "#dc2626",
+            },
+            ".cm-attribute": {
+              color: "#7c3aed",
+            },
+            ".cm-variable": {
+              color: "#1f2937",
+            },
+            ".cm-type": {
+              color: "#0891b2",
+            },
+            ".cm-function": {
+              color: "#0891b2",
+            },
+          }),
+        ],
+      })
+      editorViewRef.current.setState(newState)
+    }
+  }, [language, problem])
 
   if (loading) {
     return (
@@ -357,7 +461,7 @@ export default function LeetCodeIDE() {
                   </div>
                 </div>
               </div>
-
+              
               <div className="border-t border-gray-200"></div>
 
               <div>
