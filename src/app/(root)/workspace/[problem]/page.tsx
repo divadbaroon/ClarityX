@@ -89,24 +89,31 @@ export default function LeetCodeIDE() {
   }, [params.problem])
 
   const fetchProblem = async (problemId: string) => {
-    try {
-      setLoading(true)
-      const { problem: fetchedProblem, error } = await fetchProblemById(problemId)
-      
-      if (error || !fetchedProblem) {
-        console.error("Error loading problem:", error)
-        setProblem(null)
-      } else {
-        setProblem(fetchedProblem)
-        setCode(fetchedProblem.starter_code)
-      }
-    } catch (error) {
+  try {
+    setLoading(true)
+    const { problem: fetchedProblem, error } = await fetchProblemById(problemId)
+    
+    if (error || !fetchedProblem) {
       console.error("Error loading problem:", error)
       setProblem(null)
-    } finally {
-      setLoading(false)
+    } else {
+      setProblem(fetchedProblem)
+      
+      // Only use starter code if no saved code exists
+      const savedCode = getLatestCode()
+      if (savedCode) {
+        setCode(savedCode)
+      } else {
+        setCode(fetchedProblem.starter_code)
+      }
     }
+  } catch (error) {
+    console.error("Error loading problem:", error)
+    setProblem(null)
+  } finally {
+    setLoading(false)
   }
+}
 
   const runTests = async () => {
     if (isRunning) return; // Prevent double execution
@@ -184,7 +191,8 @@ export default function LeetCodeIDE() {
   useEffect(() => {
     if (editorRef.current && !editorViewRef.current) {
       const state = EditorState.create({
-        doc: problem?.starter_code || "",
+        doc: code || problem?.starter_code || "",
+
         extensions: [
           basicSetup,
           getLanguageExtension(language),
