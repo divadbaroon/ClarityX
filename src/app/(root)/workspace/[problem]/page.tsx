@@ -7,13 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Play, User, X, Circle } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import { keymap } from "@codemirror/view"  
 import { EditorView, basicSetup } from "codemirror"
 import { EditorState } from "@codemirror/state"
 import type { ViewUpdate } from "@codemirror/view"
+import { indentWithTab } from "@codemirror/commands"
+import { indentUnit } from "@codemirror/language"
 import { java } from "@codemirror/lang-java"
 import { python } from "@codemirror/lang-python"
 import { javascript } from "@codemirror/lang-javascript"
 import { fetchProblemById } from "@/lib/actions/problems"
+import PythonRunner from "@/components/terminal/PythonRunner"
 
 import { LeetCodeProblem, TestCase } from "@/types"
 
@@ -25,6 +29,7 @@ export default function LeetCodeIDE() {
   const [output, setOutput] = useState("")
   const [isRunning, setIsRunning] = useState(false)
   const [language, setLanguage] = useState("Python")
+  const [triggerRun, setTriggerRun] = useState(false)
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(320)
   const [terminalHeight, setTerminalHeight] = useState(200)
@@ -67,31 +72,50 @@ export default function LeetCodeIDE() {
   }
 
   const getInputOutputExamples = (inputOutput: TestCase[] | string): TestCase[] => {
-  if (Array.isArray(inputOutput)) {
-    return inputOutput.slice(0, 3)
-  }
-  if (typeof inputOutput === 'string') {
-    try {
-      const parsed = JSON.parse(inputOutput) as TestCase[]
-      return Array.isArray(parsed) ? parsed.slice(0, 3) : []
-    } catch {
-      return []
+    if (Array.isArray(inputOutput)) {
+      return inputOutput.slice(0, 3)
     }
+    if (typeof inputOutput === 'string') {
+      try {
+        const parsed = JSON.parse(inputOutput) as TestCase[]
+        return Array.isArray(parsed) ? parsed.slice(0, 3) : []
+      } catch {
+        return []
+      }
+    }
+    return []
   }
-  return []
-}
+
+  const getAllTestCases = (inputOutput: TestCase[] | string): TestCase[] => {
+    if (Array.isArray(inputOutput)) {
+      return inputOutput
+    }
+    if (typeof inputOutput === 'string') {
+      try {
+        const parsed = JSON.parse(inputOutput) as TestCase[]
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    }
+    return []
+  }
 
   const formatTitle = (taskId: string): string => {
     return taskId.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
   }
 
   const runTests = async () => {
-    setIsRunning(true)
-    setOutput("Running tests...")
-    setTimeout(() => {
-      setOutput("Output will be displayed here...")
-      setIsRunning(false)
-    }, 1500)
+    if (language === "Python") {
+      setIsRunning(true)
+      setTriggerRun(!triggerRun)
+    } else {
+      setIsRunning(true)
+      setOutput("Code execution for Java and JavaScript coming soon...")
+      setTimeout(() => {
+        setIsRunning(false)
+      }, 1500)
+    }
   }
 
   const handleMouseDownHorizontal = (e: React.MouseEvent) => {
@@ -151,13 +175,16 @@ export default function LeetCodeIDE() {
     }
   }
 
+  // Initialize editor only once
   useEffect(() => {
-    if (editorRef.current && code && !editorViewRef.current) {
+    if (editorRef.current && !editorViewRef.current) {
       const state = EditorState.create({
-        doc: code,
+        doc: problem?.starter_code || "",
         extensions: [
           basicSetup,
           getLanguageExtension(language),
+          indentUnit.of("  "), // 2 spaces for indentation
+          keymap.of([indentWithTab]), // Enable tab key
           EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) {
               setCode(update.state.doc.toString())
@@ -245,16 +272,34 @@ export default function LeetCodeIDE() {
         editorViewRef.current = null
       }
     }
-  }, [code, language])
+  }, [problem])
 
+  // Update editor content when code changes from fetch
   useEffect(() => {
-    if (editorViewRef.current) {
+    if (editorViewRef.current && problem?.starter_code && !code) {
+      const transaction = editorViewRef.current.state.update({
+        changes: {
+          from: 0,
+          to: editorViewRef.current.state.doc.length,
+          insert: problem.starter_code
+        }
+      })
+      editorViewRef.current.dispatch(transaction)
+      setCode(problem.starter_code)
+    }
+  }, [problem?.starter_code])
+
+  // Handle language changes
+  useEffect(() => {
+    if (editorViewRef.current && problem) {
       const currentDoc = editorViewRef.current.state.doc.toString()
       const newState = EditorState.create({
         doc: currentDoc,
         extensions: [
           basicSetup,
           getLanguageExtension(language),
+          indentUnit.of("  "), // 2 spaces for indentation
+          keymap.of([indentWithTab]), // Enable tab key
           EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) {
               setCode(update.state.doc.toString())
@@ -331,7 +376,7 @@ export default function LeetCodeIDE() {
       })
       editorViewRef.current.setState(newState)
     }
-  }, [language])
+  }, [language, problem])
 
   if (loading) {
     return (
@@ -383,7 +428,7 @@ export default function LeetCodeIDE() {
           style={{ width: `${leftPanelWidth}px` }}
         >
           <div className="p-6 border-b border-gray-200 flex-shrink-0">
-            <h2 className="text-lg font-semibold text-black mb-4">{problem.question_id}. {formatTitle(problem.task_id)}</h2>
+            <h2 className="text-xl font-bold text-black mb-4">{problem.question_id}. {formatTitle(problem.task_id)}</h2>
             <div className="flex flex-wrap gap-2 mb-0">
               {problem.tags?.map((tag) => (
                 <Button
@@ -400,7 +445,6 @@ export default function LeetCodeIDE() {
 
           <div className="flex-1 overflow-auto focus:outline-none">
             <div className="p-6 space-y-8">
-              {/* Task Description */}
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Circle className="w-3 h-3 fill-current text-black" />
@@ -412,10 +456,9 @@ export default function LeetCodeIDE() {
                   </div>
                 </div>
               </div>
-              {/* Divider */}
+              
               <div className="border-t border-gray-200"></div>
 
-              {/* Examples */}
               <div>
                 <div className="space-y-6">
                   {getInputOutputExamples(problem.input_output).map((example, index) => (
@@ -450,6 +493,16 @@ export default function LeetCodeIDE() {
           </div>
         </div>
 
+        {language === "Python" && problem && (
+          <PythonRunner
+            code={code}
+            testCases={getAllTestCases(problem.input_output)}
+            onOutput={setOutput}
+            isRunning={isRunning}
+            setIsRunning={setIsRunning}
+          />
+        )}
+
         <div
           className="absolute bottom-0 right-0 bg-gray-50 border-t border-l border-gray-200 shadow-lg z-20"
           style={{
@@ -465,36 +518,36 @@ export default function LeetCodeIDE() {
 
           <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
             <div className="flex items-center gap-4">
-             <Button
-              onClick={runTests}
-              disabled={isRunning}
-              className="bg-black text-white hover:bg-gray-800 h-8 px-4 text-sm focus:outline-none cursor-pointer"
-            >
-              <Play className="w-3 h-3 mr-2" />
-              Submit
-            </Button>
-            <Select value={language} onValueChange={setLanguage}>
-              <SelectTrigger className="w-24 h-8 text-sm text-gray-900 border border-gray-300 focus:ring-0 focus:outline-none shadow-none  cursor-pointer">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Java" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
-                  Java
-                </SelectItem>
-                <SelectItem value="Python" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
-                  Python
-                </SelectItem>
-                <SelectItem value="JavaScript" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
-                  JavaScript
-                </SelectItem>
-              </SelectContent>
-            </Select>
+              <Button
+                onClick={runTests}
+                disabled={isRunning}
+                className="bg-black text-white hover:bg-gray-800 h-8 px-4 text-sm focus:outline-none cursor-pointer"
+              >
+                <Play className="w-3 h-3 mr-2" />
+                Run Tests
+              </Button>
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="w-24 h-8 text-sm text-gray-900 border border-gray-300 focus:ring-0 focus:outline-none shadow-none">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Java" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900">
+                    Java
+                  </SelectItem>
+                  <SelectItem value="Python" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900">
+                    Python
+                  </SelectItem>
+                  <SelectItem value="JavaScript" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900">
+                    JavaScript
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <div className="p-4 bg-gray-50 h-full" style={{ height: `calc(100% - 45px)` }}>
             <div className="bg-gray-100 rounded-lg p-4 h-full overflow-auto" style={{ height: `calc(100% - 8px)` }}>
-              <div className="text-sm text-gray-900 font-mono">{output}</div>
+              <div className="text-sm text-gray-900 font-mono whitespace-pre-wrap">{output}</div>
             </div>
           </div>
         </div>
