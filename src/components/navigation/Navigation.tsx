@@ -43,6 +43,7 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
 
   const isHomePage = pathname === "/" || pathname === "/home"
   const isProblemsSection = pathname?.startsWith('/problems')
+  const isWorkspace = pathname?.startsWith('/workspace/')
 
   return (
     <nav
@@ -121,9 +122,22 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
             </div>
           )}
 
-          {/* Right Side - CTA or Account Icon */}
+          {/* Right Side */}
           <div className="flex items-center space-x-4">
             <div className="hidden lg:flex items-center space-x-4">
+             {/* View Understanding Button  */}
+              {isWorkspace && user && (
+                <Button
+                  size="sm"
+                  className="bg-black text-white hover:bg-gray-800 rounded-full px-4 py-1.5 text-xs font-medium transition-all duration-200 cursor-pointer shadow-md hover:shadow-lg flex items-center gap-1.5"
+                  onClick={() => {
+                    console.log('Opening concept map visualization')
+                  }}
+                >
+                  View Understanding
+                </Button>
+              )}
+                            
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -209,6 +223,22 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
                     >
                       Progress
                     </button>
+                    <div className="border-t border-gray-100"></div>
+                  </>
+                )}
+                {/* Mobile Visualize Button */}
+                {isWorkspace && (
+                  <>
+                    <Button
+                      size="sm"
+                      className="bg-black text-white hover:bg-gray-800 rounded-lg py-1.5 px-3 text-xs font-medium w-full justify-start flex items-center gap-1.5"
+                      onClick={() => {
+                        setIsMenuOpen(false)
+                        console.log('Opening concept map visualization')
+                      }}
+                    >
+                      View Understanding
+                    </Button>
                     <div className="border-t border-gray-100"></div>
                   </>
                 )}
