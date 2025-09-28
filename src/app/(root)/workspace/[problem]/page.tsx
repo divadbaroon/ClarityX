@@ -465,30 +465,30 @@ export default function LeetCodeIDE() {
 
           <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
             <div className="flex items-center gap-4">
-              <Button
-                onClick={runTests}
-                disabled={isRunning}
-                className="bg-black text-white hover:bg-gray-800 h-8 px-4 text-sm focus:outline-none"
-              >
-                <Play className="w-3 h-3 mr-2" />
-                Run Tests
-              </Button>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger className="w-24 h-8 text-sm text-gray-900 border border-gray-300 focus:ring-0 focus:outline-none shadow-none">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Java" className="text-gray-900 focus:outline-none">
-                    Java
-                  </SelectItem>
-                  <SelectItem value="Python" className="text-gray-900 focus:outline-none">
-                    Python
-                  </SelectItem>
-                  <SelectItem value="JavaScript" className="text-gray-900 focus:outline-none">
-                    JavaScript
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+             <Button
+              onClick={runTests}
+              disabled={isRunning}
+              className="bg-black text-white hover:bg-gray-800 h-8 px-4 text-sm focus:outline-none cursor-pointer"
+            >
+              <Play className="w-3 h-3 mr-2" />
+              Submit
+            </Button>
+            <Select value={language} onValueChange={setLanguage}>
+              <SelectTrigger className="w-24 h-8 text-sm text-gray-900 border border-gray-300 focus:ring-0 focus:outline-none shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Java" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900">
+                  Java
+                </SelectItem>
+                <SelectItem value="Python" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900">
+                  Python
+                </SelectItem>
+                <SelectItem value="JavaScript" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900">
+                  JavaScript
+                </SelectItem>
+              </SelectContent>
+            </Select>
             </div>
           </div>
 
