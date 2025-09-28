@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Play, User, X, Circle } from "lucide-react"
@@ -19,6 +19,18 @@ import { javascript } from "@codemirror/lang-javascript"
 import { fetchProblemById } from "@/lib/actions/problems"
 import PythonRunner from "@/components/terminal/PythonRunner"
 import { useWorkspaceContext } from '@/app/providers/WorkspaceProvider'
+
+// Concept Map Types
+interface ConceptMapEntry {
+  understandingLevel: number
+  confidenceInAssessment: number
+  reasoning: string
+  lastUpdated: string
+}
+
+interface ConceptMap {
+  [conceptName: string]: ConceptMapEntry
+}
 
 export default function LeetCodeIDE() {
   const params = useParams()
@@ -56,6 +68,16 @@ export default function LeetCodeIDE() {
   const [isDraggingHorizontal, setIsDraggingHorizontal] = useState(false)
   const [isDraggingVertical, setIsDraggingVertical] = useState(false)
 
+  // Concept Map State
+  const [conceptMap, setConceptMap] = useState<ConceptMap>({})
+  const [isUpdatingConceptMap, setIsUpdatingConceptMap] = useState(false)
+  const lastCodeRef = useRef<string>('')
+  const lastOutputRef = useRef<string>('')
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
+  const editorViewRef = useRef<EditorView | null>(null)
+
   // When problem loads, use starter code if no saved code exists
   useEffect(() => {
     if (problem?.starter_code && !getLatestCode()) {
@@ -64,23 +86,131 @@ export default function LeetCodeIDE() {
     }
   }, [problem, getLatestCode, setLatestCode])
 
+  // Auto-save code periodically
   useEffect(() => {
     const interval = setInterval(() => {
-      // Pull directly from the CodeMirror buffer 
-      const snapshot = editorViewRef.current?.state.doc.toString() ?? code
-      console.log("[IDE] autosave snapshot:", snapshot.slice(0, 200), "… len=", snapshot.length)
-
-      // Save to context so WorkspaceProvider stays in sync
-      setLatestCode(snapshot)
-    }, 3000) 
+      if (editorViewRef.current) {
+        const snapshot = editorViewRef.current.state.doc.toString()
+        setLatestCode(snapshot)
+      }
+    }, 3000)
 
     return () => clearInterval(interval)
-  }, [setLatestCode, code])
+  }, [setLatestCode])
 
+  // Update concept map when code changes significantly
+  useEffect(() => {
+    const codeChanged = lastCodeRef.current && 
+      Math.abs(code.length - lastCodeRef.current.length) > 50
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  const editorRef = useRef<HTMLDivElement>(null)
-  const editorViewRef = useRef<EditorView | null>(null)
+    if (codeChanged && problem && !isUpdatingConceptMap) {
+      console.log('[ConceptMap] Significant code change detected')
+      updateConceptMap(code, terminalOutput)
+      lastCodeRef.current = code
+    }
+  }, [code, problem, terminalOutput])
+
+  // Update concept map when terminal output changes (test results)
+  useEffect(() => {
+    const outputChanged = terminalOutput && 
+      terminalOutput !== lastOutputRef.current &&
+      terminalOutput.includes('Test Case')
+
+    if (outputChanged && problem && !isUpdatingConceptMap) {
+      console.log('[ConceptMap] Test results detected')
+      updateConceptMap(code, terminalOutput)
+      lastOutputRef.current = terminalOutput
+    }
+  }, [terminalOutput, code, problem])
+
+  const updateConceptMap = useCallback(async (currentCode: string, output: string) => {
+    if (!problem) return
+    
+    setIsUpdatingConceptMap(true)
+    try {
+      // Parse test results from output
+      const testResults = parseTestResults(output)
+      
+      const context = {
+        taskName: problem.task_id,
+        methodName: extractMethodName(problem.starter_code),
+        methodTemplate: problem.starter_code,
+        currentStudentCode: currentCode,
+        terminalOutput: output || 'No output yet',
+        conversationHistory: [],
+        currentConceptMap: conceptMap,
+        sessionId: 'session-' + Date.now(),
+        profileId: 'user-id', // Replace with actual user ID
+        testResults
+      }
+
+      const response = await fetch('/api/claude/concept-map', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setConceptMap(data.updatedConceptMap)
+        
+        // Detailed console logging
+        console.log('📊 [ConceptMap] Full Update:', JSON.stringify(data.updatedConceptMap, null, 2))
+        
+        // Log each concept individually
+        Object.entries(data.updatedConceptMap).forEach(([concept, details]: [string, any]) => {
+          console.log(`📈 [${concept}]:`, {
+            understanding: `${(details.understandingLevel * 100).toFixed(0)}%`,
+            confidence: `${(details.confidenceInAssessment * 100).toFixed(0)}%`,
+            reasoning: details.reasoning
+          })
+        })
+      }
+          } catch (error) {
+      console.error('[ConceptMap] Error:', error)
+    } finally {
+      setIsUpdatingConceptMap(false)
+    }
+  }, [problem, conceptMap])
+
+  function extractMethodName(starterCode: string): string {
+    const match = starterCode.match(/def\s+(\w+)\s*\(/)
+    return match ? match[1] : 'unknown'
+  }
+
+  function parseTestResults(output: string) {
+    if (!output) return undefined
+    
+    const lines = output.split('\n')
+    let totalTests = 0
+    let passedTests = 0
+    const failedTests: any[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.includes('Test Case')) {
+        totalTests++
+        if (line.includes('PASSED')) {
+          passedTests++
+        } else if (line.includes('FAILED')) {
+          const inputMatch = lines[i + 1]?.match(/Input: (.*)/)
+          const expectedMatch = lines[i + 2]?.match(/Expected: (.*)/)
+          const actualMatch = lines[i + 3]?.match(/Got: (.*)/)
+          
+          if (expectedMatch && actualMatch) {
+            failedTests.push({
+              input: inputMatch ? inputMatch[1] : '',
+              expected: expectedMatch[1],
+              actual: actualMatch[1],
+              error: ''
+            })
+          }
+        }
+      }
+    }
+
+    return totalTests > 0 ? { totalTests, passedTests, failedTests } : undefined
+  }
 
   useEffect(() => {
     if (params.problem) {
@@ -89,34 +219,35 @@ export default function LeetCodeIDE() {
   }, [params.problem])
 
   const fetchProblem = async (problemId: string) => {
-  try {
-    setLoading(true)
-    const { problem: fetchedProblem, error } = await fetchProblemById(problemId)
-    
-    if (error || !fetchedProblem) {
+    try {
+      setLoading(true)
+      const { problem: fetchedProblem, error } = await fetchProblemById(problemId)
+      
+      if (error || !fetchedProblem) {
+        console.error("Error loading problem:", error)
+        setProblem(null)
+      } else {
+        setProblem(fetchedProblem)
+        
+        // Check for saved code first
+        const savedCode = getLatestCode()
+        if (savedCode) {
+          setCode(savedCode)
+        } else {
+          setCode(fetchedProblem.starter_code)
+          setLatestCode(fetchedProblem.starter_code)
+        }
+      }
+    } catch (error) {
       console.error("Error loading problem:", error)
       setProblem(null)
-    } else {
-      setProblem(fetchedProblem)
-      
-      // Only use starter code if no saved code exists
-      const savedCode = getLatestCode()
-      if (savedCode) {
-        setCode(savedCode)
-      } else {
-        setCode(fetchedProblem.starter_code)
-      }
+    } finally {
+      setLoading(false)
     }
-  } catch (error) {
-    console.error("Error loading problem:", error)
-    setProblem(null)
-  } finally {
-    setLoading(false)
   }
-}
 
   const runTests = async () => {
-    if (isRunning) return; // Prevent double execution
+    if (isRunning) return
     
     if (language === "Python") {
       setIsRunning(true)
@@ -187,12 +318,14 @@ export default function LeetCodeIDE() {
     }
   }
 
-  // Initialize editor only once
+  // Initialize editor
   useEffect(() => {
     if (editorRef.current && !editorViewRef.current) {
+      const savedCode = getLatestCode()
+      const initialCode = savedCode || problem?.starter_code || ""
+      
       const state = EditorState.create({
-        doc: code || problem?.starter_code || "",
-
+        doc: initialCode,
         extensions: [
           basicSetup,
           getLanguageExtension(language),
@@ -285,22 +418,7 @@ export default function LeetCodeIDE() {
         editorViewRef.current = null
       }
     }
-  }, [problem])
-
-  // Update editor content when code changes from fetch
-  useEffect(() => {
-    if (editorViewRef.current && problem?.starter_code && !code) {
-      const transaction = editorViewRef.current.state.update({
-        changes: {
-          from: 0,
-          to: editorViewRef.current.state.doc.length,
-          insert: problem.starter_code
-        }
-      })
-      editorViewRef.current.dispatch(transaction)
-      setCode(problem.starter_code)
-    }
-  }, [problem?.starter_code, code])
+  }, [problem, language, getLatestCode])
 
   // Handle language changes
   useEffect(() => {
@@ -423,6 +541,11 @@ export default function LeetCodeIDE() {
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center">
           <h1 className="text-xl font-bold text-black">ClarityX.</h1>
+          {isUpdatingConceptMap && (
+            <span className="ml-4 text-sm text-gray-500 animate-pulse">
+              Analyzing understanding...
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900 focus:outline-none">
