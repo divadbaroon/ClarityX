@@ -19,6 +19,7 @@ import { javascript } from "@codemirror/lang-javascript"
 import { fetchProblemById } from "@/lib/actions/problems"
 import PythonRunner from "@/components/terminal/PythonRunner"
 import { useWorkspaceContext } from '@/app/providers/WorkspaceProvider'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // Concept Map Types
 interface ConceptMapEntry {
@@ -30,13 +31,6 @@ interface ConceptMapEntry {
 
 interface ConceptMap {
   [conceptName: string]: ConceptMapEntry
-}
-
-interface TestResult {
-  input: string
-  expected: string
-  actual: string
-  error: string
 }
 
 export default function LeetCodeIDE() {
@@ -74,6 +68,7 @@ export default function LeetCodeIDE() {
   const [triggerRun, setTriggerRun] = useState(false)
   const [isDraggingHorizontal, setIsDraggingHorizontal] = useState(false)
   const [isDraggingVertical, setIsDraggingVertical] = useState(false)
+  const [showVisualization, setShowVisualization] = useState(false)
 
   // Concept Map State
   const [conceptMap, setConceptMap] = useState<ConceptMap>({})
@@ -105,6 +100,31 @@ export default function LeetCodeIDE() {
     return () => clearInterval(interval)
   }, [setLatestCode])
 
+  // Update concept map when code changes significantly
+  useEffect(() => {
+    const codeChanged = lastCodeRef.current && 
+      Math.abs(code.length - lastCodeRef.current.length) > 50
+
+    if (codeChanged && problem && !isUpdatingConceptMap) {
+      console.log('[ConceptMap] Significant code change detected')
+      updateConceptMap(code, terminalOutput)
+      lastCodeRef.current = code
+    }
+  }, [code, problem, terminalOutput])
+
+  // Update concept map when terminal output changes (test results)
+  useEffect(() => {
+    const outputChanged = terminalOutput && 
+      terminalOutput !== lastOutputRef.current &&
+      terminalOutput.includes('Test Case')
+
+    if (outputChanged && problem && !isUpdatingConceptMap) {
+      console.log('[ConceptMap] Test results detected')
+      updateConceptMap(code, terminalOutput)
+      lastOutputRef.current = terminalOutput
+    }
+  }, [terminalOutput, code, problem])
+
   const updateConceptMap = useCallback(async (currentCode: string, output: string) => {
     if (!problem) return
     
@@ -135,19 +155,7 @@ export default function LeetCodeIDE() {
       if (response.ok) {
         const data = await response.json()
         setConceptMap(data.updatedConceptMap)
-        
-        // Detailed console logging
-        console.log('📊 [ConceptMap] Full Update:', JSON.stringify(data.updatedConceptMap, null, 2))
-        
-        // Log each concept individually
-        Object.entries(data.updatedConceptMap).forEach(([concept, details]) => {
-          const entry = details as ConceptMapEntry
-          console.log(`📈 [${concept}]:`, {
-            understanding: `${(entry.understandingLevel * 100).toFixed(0)}%`,
-            confidence: `${(entry.confidenceInAssessment * 100).toFixed(0)}%`,
-            reasoning: entry.reasoning
-          })
-        })
+        console.log('[ConceptMap] Updated:', data.updatedConceptMap)
       }
     } catch (error) {
       console.error('[ConceptMap] Error:', error)
@@ -155,31 +163,6 @@ export default function LeetCodeIDE() {
       setIsUpdatingConceptMap(false)
     }
   }, [problem, conceptMap])
-
-  // Update concept map when code changes significantly
-  useEffect(() => {
-    const codeChanged = lastCodeRef.current && 
-      Math.abs(code.length - lastCodeRef.current.length) > 50
-
-    if (codeChanged && problem && !isUpdatingConceptMap) {
-      console.log('[ConceptMap] Significant code change detected')
-      updateConceptMap(code, terminalOutput)
-      lastCodeRef.current = code
-    }
-  }, [code, problem, terminalOutput, isUpdatingConceptMap, updateConceptMap])
-
-  // Update concept map when terminal output changes (test results)
-  useEffect(() => {
-    const outputChanged = terminalOutput && 
-      terminalOutput !== lastOutputRef.current &&
-      terminalOutput.includes('Test Case')
-
-    if (outputChanged && problem && !isUpdatingConceptMap) {
-      console.log('[ConceptMap] Test results detected')
-      updateConceptMap(code, terminalOutput)
-      lastOutputRef.current = terminalOutput
-    }
-  }, [terminalOutput, code, problem, isUpdatingConceptMap, updateConceptMap])
 
   function extractMethodName(starterCode: string): string {
     const match = starterCode.match(/def\s+(\w+)\s*\(/)
@@ -192,7 +175,7 @@ export default function LeetCodeIDE() {
     const lines = output.split('\n')
     let totalTests = 0
     let passedTests = 0
-    const failedTests: TestResult[] = []
+    const failedTests: any[] = []
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
@@ -220,7 +203,13 @@ export default function LeetCodeIDE() {
     return totalTests > 0 ? { totalTests, passedTests, failedTests } : undefined
   }
 
-  const fetchProblem = useCallback(async (problemId: string) => {
+  useEffect(() => {
+    if (params.problem) {
+      fetchProblem(params.problem as string)
+    }
+  }, [params.problem])
+
+  const fetchProblem = async (problemId: string) => {
     try {
       setLoading(true)
       const { problem: fetchedProblem, error } = await fetchProblemById(problemId)
@@ -246,13 +235,7 @@ export default function LeetCodeIDE() {
     } finally {
       setLoading(false)
     }
-  }, [setProblem, getLatestCode, setLatestCode])
-
-  useEffect(() => {
-    if (params.problem) {
-      fetchProblem(params.problem as string)
-    }
-  }, [params.problem, fetchProblem])
+  }
 
   const runTests = async () => {
     if (isRunning) return
@@ -545,157 +528,240 @@ export default function LeetCodeIDE() {
   }
 
   return (
-    <div className="h-screen bg-white flex flex-col">
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center">
-          <h1 className="text-xl font-bold text-black">ClarityX.</h1>
-          {isUpdatingConceptMap && (
-            <span className="ml-4 text-sm text-gray-500 animate-pulse">
-              Analyzing understanding...
-            </span>
-          )}
+    <>
+      <div className="h-screen bg-white flex flex-col">
+        {/* Overlay Visualize Button */}
+        <Button
+          size="sm"
+          className="fixed top-6 right-28 z-50 bg-black text-white hover:bg-gray-800 rounded-full px-4 py-1.5 text-xs font-medium transition-all duration-200 cursor-pointer shadow-md hover:shadow-lg flex items-center gap-1.5"
+          onClick={() => setShowVisualization(true)}
+        >
+          Visualize Understanding
+        </Button>
+
+        <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <h1 className="text-xl font-bold text-black">ClarityX.</h1>
+            {isUpdatingConceptMap && (
+              <span className="ml-4 text-sm text-gray-500 animate-pulse">
+                Analyzing understanding...
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900 focus:outline-none">
+              <X className="w-4 h-4 mr-2" />
+              Close ClarityX
+            </Button>
+            <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+              <User className="w-4 h-4 text-white" />
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-900 focus:outline-none">
-            <X className="w-4 h-4 mr-2" />
-            Close ClarityX
-          </Button>
-          <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
+
+        <div className="flex-1 flex overflow-hidden focus:outline-none relative" ref={containerRef}>
+          <div
+            className="border-r border-gray-200 flex flex-col bg-white focus:outline-none z-10"
+            style={{ width: `${leftPanelWidth}px` }}
+          >
+            <div className="p-6 border-b border-gray-200 flex-shrink-0">
+              <h2 className="text-xl font-bold text-black mb-4">{taskTitle}</h2>
+              <div className="flex flex-wrap gap-2 mb-0">
+                {problem.tags?.map((tag) => (
+                  <Button
+                    key={tag}
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs px-3 py-1 h-7 bg-gray-100 hover:bg-gray-200 text-gray-700 focus:outline-none"
+                  >
+                    {tag}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto focus:outline-none">
+              <div className="p-6 space-y-8">
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Circle className="w-3 h-3 fill-current text-black" />
+                    <h3 className="font-semibold text-black">Task Description</h3>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="text-sm text-gray-700 leading-relaxed">
+                      {taskDescription}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border-t border-gray-200"></div>
+
+                <div>
+                  <div className="space-y-6">
+                    {examples.map((example, index) => (
+                      <div key={index}>
+                        <h5 className="font-medium text-black mb-3">Example {index + 1}</h5>
+                        <div className="bg-gray-50 p-4 rounded-lg text-xs font-mono space-y-2">
+                          <div>
+                            <span className="text-gray-800 font-semibold">Input:</span>{" "}
+                            <span className="text-gray-900">{example.input}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-800 font-semibold">Output:</span>{" "}
+                            <span className="text-green-600">{example.output}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="w-1 bg-gray-200 hover:bg-gray-300 cursor-col-resize flex-shrink-0 focus:outline-none z-10"
+            onMouseDown={handleMouseDownHorizontal}
+          />
+
+          <div className="flex-1 flex flex-col min-w-0 focus:outline-none">
+            <div className="flex-1 focus:outline-none">
+              <div ref={editorRef} className="w-full h-full focus:outline-none" style={{ minHeight: "100%" }} />
+            </div>
+          </div>
+
+          {language === "Python" && problem && (
+            <PythonRunner
+              code={code}
+              testCases={testCases}
+              onOutput={setTerminalOutput}
+              isRunning={isRunning}
+              setIsRunning={setIsRunning}
+            />
+          )}
+
+          <div
+            className="absolute bottom-0 right-0 bg-gray-50 border-t border-l border-gray-200 shadow-lg z-20"
+            style={{
+              height: `${terminalHeight}px`,
+              width: `calc(100% - ${leftPanelWidth + 4}px)`,
+              left: `${leftPanelWidth + 4}px`,
+            }}
+          >
+            <div
+              className="h-1 bg-gray-200 hover:bg-gray-300 cursor-row-resize flex-shrink-0 focus:outline-none"
+              onMouseDown={handleMouseDownVertical}
+            />
+
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={runTests}
+                  disabled={isRunning}
+                  className="bg-black text-white hover:bg-gray-800 h-8 px-4 text-sm focus:outline-none cursor-pointer"
+                >
+                  <Play className="w-3 h-3 mr-2" />
+                  Run Tests
+                </Button>
+                <Select value={language} onValueChange={setLanguage}>
+                  <SelectTrigger className="w-24 h-8 text-sm text-gray-900 border border-gray-300 focus:ring-0 focus:outline-none shadow-none cursor-pointer">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Java" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
+                      Java
+                    </SelectItem>
+                    <SelectItem value="Python" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
+                      Python
+                    </SelectItem>
+                    <SelectItem value="JavaScript" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
+                      JavaScript
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 h-full" style={{ height: `calc(100% - 45px)` }}>
+              <div className="bg-gray-100 rounded-lg p-4 h-full overflow-auto" style={{ height: `calc(100% - 8px)` }}>
+                <div className="text-sm text-gray-900 font-mono whitespace-pre-wrap">{terminalOutput}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden focus:outline-none relative" ref={containerRef}>
-        <div
-          className="border-r border-gray-200 flex flex-col bg-white focus:outline-none z-10"
-          style={{ width: `${leftPanelWidth}px` }}
-        >
-          <div className="p-6 border-b border-gray-200 flex-shrink-0">
-            <h2 className="text-xl font-bold text-black mb-4">{taskTitle}</h2>
-            <div className="flex flex-wrap gap-2 mb-0">
-              {problem.tags?.map((tag) => (
-                <Button
-                  key={tag}
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs px-3 py-1 h-7 bg-gray-100 hover:bg-gray-200 text-gray-700 focus:outline-none"
+     {/* Visualization Modal */}
+<Dialog open={showVisualization} onOpenChange={setShowVisualization}>
+  <DialogContent className="max-w-6xl h-[80vh] bg-gray-900 border-gray-800">
+    <DialogHeader>
+      <DialogTitle className="text-white text-lg">Concept Understanding Map</DialogTitle>
+    </DialogHeader>
+    <div className="flex-1 overflow-auto p-4">
+      {Object.keys(conceptMap).length > 0 ? (
+        <div className="flex gap-6 h-full">
+          {/* Left side - Concept Map */}
+          <div className="flex-1 overflow-auto">
+            <h3 className="text-gray-400 text-sm font-medium mb-3">Understanding Levels</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {Object.entries(conceptMap).map(([concept, data]: [string, ConceptMapEntry]) => (
+                <div 
+                  key={concept}
+                  className="bg-gray-800 rounded-lg p-3 border border-gray-700"
+                  style={{
+                    opacity: 0.5 + (data.confidenceInAssessment * 0.5),
+                    borderColor: data.understandingLevel > 0.7 ? '#10b981' : 
+                                 data.understandingLevel > 0.4 ? '#f59e0b' : '#ef4444'
+                  }}
                 >
-                  {tag}
-                </Button>
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="text-white font-medium text-sm">{concept}</h4>
+                    <span className={`text-sm font-bold ${
+                      data.understandingLevel > 0.7 ? 'text-green-400' :
+                      data.understandingLevel > 0.4 ? 'text-yellow-400' :
+                      'text-red-400'
+                    }`}>
+                      {(data.understandingLevel * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">Confidence:</span>
+                      <div className="flex-1 bg-gray-700 rounded-full h-1.5">
+                        <div 
+                          className="bg-blue-500 h-1.5 rounded-full"
+                          style={{ width: `${data.confidenceInAssessment * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {(data.confidenceInAssessment * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-300 mt-1 line-clamp-2">{data.reasoning}</p>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto focus:outline-none">
-            <div className="p-6 space-y-8">
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Circle className="w-3 h-3 fill-current text-black" />
-                  <h3 className="font-semibold text-black">Task Description</h3>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-700 leading-relaxed">
-                    {taskDescription}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="border-t border-gray-200"></div>
-
-              <div>
-                <div className="space-y-6">
-                  {examples.map((example, index) => (
-                    <div key={index}>
-                      <h5 className="font-medium text-black mb-3">Example {index + 1}</h5>
-                      <div className="bg-gray-50 p-4 rounded-lg text-xs font-mono space-y-2">
-                        <div>
-                          <span className="text-gray-800 font-semibold">Input:</span>{" "}
-                          <span className="text-gray-900">{example.input}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-800 font-semibold">Output:</span>{" "}
-                          <span className="text-green-600">{example.output}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          {/* Right side - Code at time of assessment */}
+          <div className="flex-1 overflow-auto">
+            <h3 className="text-gray-400 text-sm font-medium mb-3">Your Code (Current)</h3>
+            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 h-full">
+              <pre className="text-xs text-gray-300 font-mono overflow-auto">
+                <code>{code || "// No code written yet"}</code>
+              </pre>
             </div>
           </div>
         </div>
-
-        <div
-          className="w-1 bg-gray-200 hover:bg-gray-300 cursor-col-resize flex-shrink-0 focus:outline-none z-10"
-          onMouseDown={handleMouseDownHorizontal}
-        />
-
-        <div className="flex-1 flex flex-col min-w-0 focus:outline-none">
-          <div className="flex-1 focus:outline-none">
-            <div ref={editorRef} className="w-full h-full focus:outline-none" style={{ minHeight: "100%" }} />
-          </div>
+      ) : (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-gray-400">No concept map data yet. Write some code and run tests to see your understanding levels.</p>
         </div>
-
-        {language === "Python" && problem && (
-          <PythonRunner
-            code={code}
-            testCases={testCases}
-            onOutput={setTerminalOutput}
-            isRunning={isRunning}
-            setIsRunning={setIsRunning}
-          />
-        )}
-
-        <div
-          className="absolute bottom-0 right-0 bg-gray-50 border-t border-l border-gray-200 shadow-lg z-20"
-          style={{
-            height: `${terminalHeight}px`,
-            width: `calc(100% - ${leftPanelWidth + 4}px)`,
-            left: `${leftPanelWidth + 4}px`,
-          }}
-        >
-          <div
-            className="h-1 bg-gray-200 hover:bg-gray-300 cursor-row-resize flex-shrink-0 focus:outline-none"
-            onMouseDown={handleMouseDownVertical}
-          />
-
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={runTests}
-                disabled={isRunning}
-                className="bg-black text-white hover:bg-gray-800 h-8 px-4 text-sm focus:outline-none cursor-pointer"
-              >
-                <Play className="w-3 h-3 mr-2" />
-                Run Tests
-              </Button>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger className="w-24 h-8 text-sm text-gray-900 border border-gray-300 focus:ring-0 focus:outline-none shadow-none cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Java" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
-                    Java
-                  </SelectItem>
-                  <SelectItem value="Python" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
-                    Python
-                  </SelectItem>
-                  <SelectItem value="JavaScript" className="text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 cursor-pointer">
-                    JavaScript
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="p-4 bg-gray-50 h-full" style={{ height: `calc(100% - 45px)` }}>
-            <div className="bg-gray-100 rounded-lg p-4 h-full overflow-auto" style={{ height: `calc(100% - 8px)` }}>
-              <div className="text-sm text-gray-900 font-mono whitespace-pre-wrap">{terminalOutput}</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
+  </DialogContent>
+</Dialog>
+    </>
   )
 }
