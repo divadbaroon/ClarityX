@@ -18,23 +18,65 @@ import { python } from "@codemirror/lang-python"
 import { javascript } from "@codemirror/lang-javascript"
 import { fetchProblemById } from "@/lib/actions/problems"
 import PythonRunner from "@/components/terminal/PythonRunner"
-
-import { LeetCodeProblem, TestCase } from "@/types"
+import { useWorkspaceContext } from '@/app/providers/WorkspaceProvider'
 
 export default function LeetCodeIDE() {
   const params = useParams()
-  const [problem, setProblem] = useState<LeetCodeProblem | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [code, setCode] = useState("")
-  const [output, setOutput] = useState("")
-  const [isRunning, setIsRunning] = useState(false)
-  const [language, setLanguage] = useState("Python")
-  const [triggerRun, setTriggerRun] = useState(false)
+  
+  // Get values from context
+  const {
+    problem,
+    setProblem,
+    taskTitle,
+    taskDescription,
+    examples,
+    testCases,
+    terminalOutput,
+    setTerminalOutput,
+    isRunning,
+    setIsRunning,
+    language,
+    setLanguage,
+    leftPanelWidth,
+    setLeftPanelWidth,
+    terminalHeight,
+    setTerminalHeight,
+    setLatestCode,  
+    getLatestCode,  
+  } = useWorkspaceContext()
 
-  const [leftPanelWidth, setLeftPanelWidth] = useState(320)
-  const [terminalHeight, setTerminalHeight] = useState(200)
+  // Initialize local code with latest saved or starter code
+  const [code, setCode] = useState(() => {
+    const saved = getLatestCode()
+    return saved || ""
+  })
+  
+  const [loading, setLoading] = useState(true)
+  const [triggerRun, setTriggerRun] = useState(false)
   const [isDraggingHorizontal, setIsDraggingHorizontal] = useState(false)
   const [isDraggingVertical, setIsDraggingVertical] = useState(false)
+
+  // When problem loads, use starter code if no saved code exists
+  useEffect(() => {
+    if (problem?.starter_code && !getLatestCode()) {
+      setCode(problem.starter_code)
+      setLatestCode(problem.starter_code)
+    }
+  }, [problem, getLatestCode, setLatestCode])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Pull directly from the CodeMirror buffer 
+      const snapshot = editorViewRef.current?.state.doc.toString() ?? code
+      console.log("[IDE] autosave snapshot:", snapshot.slice(0, 200), "… len=", snapshot.length)
+
+      // Save to context so WorkspaceProvider stays in sync
+      setLatestCode(snapshot)
+    }, 3000) 
+
+    return () => clearInterval(interval)
+  }, [setLatestCode, code])
+
 
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
@@ -66,52 +108,15 @@ export default function LeetCodeIDE() {
     }
   }
 
-  const getTaskDescription = (fullDescription: string): string => {
-    const parts = fullDescription.split(/Example\s*\d+\s*:/i)
-    return parts[0].trim()
-  }
-
-  const getInputOutputExamples = (inputOutput: TestCase[] | string): TestCase[] => {
-    if (Array.isArray(inputOutput)) {
-      return inputOutput.slice(0, 3)
-    }
-    if (typeof inputOutput === 'string') {
-      try {
-        const parsed = JSON.parse(inputOutput) as TestCase[]
-        return Array.isArray(parsed) ? parsed.slice(0, 3) : []
-      } catch {
-        return []
-      }
-    }
-    return []
-  }
-
-  const getAllTestCases = (inputOutput: TestCase[] | string): TestCase[] => {
-    if (Array.isArray(inputOutput)) {
-      return inputOutput
-    }
-    if (typeof inputOutput === 'string') {
-      try {
-        const parsed = JSON.parse(inputOutput) as TestCase[]
-        return Array.isArray(parsed) ? parsed : []
-      } catch {
-        return []
-      }
-    }
-    return []
-  }
-
-  const formatTitle = (taskId: string): string => {
-    return taskId.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
-  }
-
   const runTests = async () => {
+    if (isRunning) return; // Prevent double execution
+    
     if (language === "Python") {
       setIsRunning(true)
       setTriggerRun(!triggerRun)
     } else {
       setIsRunning(true)
-      setOutput("Code execution for Java and JavaScript coming soon...")
+      setTerminalOutput("Code execution for Java and JavaScript coming soon...")
       setTimeout(() => {
         setIsRunning(false)
       }, 1500)
@@ -160,7 +165,7 @@ export default function LeetCodeIDE() {
       document.body.style.cursor = ""
       document.body.style.userSelect = ""
     }
-  }, [isDraggingHorizontal, isDraggingVertical])
+  }, [isDraggingHorizontal, isDraggingVertical, setLeftPanelWidth, setTerminalHeight])
 
   const getLanguageExtension = (lang: string) => {
     switch (lang) {
@@ -183,8 +188,8 @@ export default function LeetCodeIDE() {
         extensions: [
           basicSetup,
           getLanguageExtension(language),
-          indentUnit.of("  "), // 2 spaces for indentation
-          keymap.of([indentWithTab]), // Enable tab key
+          indentUnit.of("  "),
+          keymap.of([indentWithTab]),
           EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) {
               setCode(update.state.doc.toString())
@@ -287,7 +292,7 @@ export default function LeetCodeIDE() {
       editorViewRef.current.dispatch(transaction)
       setCode(problem.starter_code)
     }
-  }, [problem?.starter_code])
+  }, [problem?.starter_code, code])
 
   // Handle language changes
   useEffect(() => {
@@ -298,8 +303,8 @@ export default function LeetCodeIDE() {
         extensions: [
           basicSetup,
           getLanguageExtension(language),
-          indentUnit.of("  "), // 2 spaces for indentation
-          keymap.of([indentWithTab]), // Enable tab key
+          indentUnit.of("  "),
+          keymap.of([indentWithTab]),
           EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) {
               setCode(update.state.doc.toString())
@@ -428,7 +433,7 @@ export default function LeetCodeIDE() {
           style={{ width: `${leftPanelWidth}px` }}
         >
           <div className="p-6 border-b border-gray-200 flex-shrink-0">
-            <h2 className="text-xl font-bold text-black mb-4">{problem.question_id}. {formatTitle(problem.task_id)}</h2>
+            <h2 className="text-xl font-bold text-black mb-4">{taskTitle}</h2>
             <div className="flex flex-wrap gap-2 mb-0">
               {problem.tags?.map((tag) => (
                 <Button
@@ -452,7 +457,7 @@ export default function LeetCodeIDE() {
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="text-sm text-gray-700 leading-relaxed">
-                    {getTaskDescription(problem.problem_description)}
+                    {taskDescription}
                   </div>
                 </div>
               </div>
@@ -461,7 +466,7 @@ export default function LeetCodeIDE() {
 
               <div>
                 <div className="space-y-6">
-                  {getInputOutputExamples(problem.input_output).map((example, index) => (
+                  {examples.map((example, index) => (
                     <div key={index}>
                       <h5 className="font-medium text-black mb-3">Example {index + 1}</h5>
                       <div className="bg-gray-50 p-4 rounded-lg text-xs font-mono space-y-2">
@@ -496,8 +501,8 @@ export default function LeetCodeIDE() {
         {language === "Python" && problem && (
           <PythonRunner
             code={code}
-            testCases={getAllTestCases(problem.input_output)}
-            onOutput={setOutput}
+            testCases={testCases}
+            onOutput={setTerminalOutput}
             isRunning={isRunning}
             setIsRunning={setIsRunning}
           />
@@ -547,7 +552,7 @@ export default function LeetCodeIDE() {
 
           <div className="p-4 bg-gray-50 h-full" style={{ height: `calc(100% - 45px)` }}>
             <div className="bg-gray-100 rounded-lg p-4 h-full overflow-auto" style={{ height: `calc(100% - 8px)` }}>
-              <div className="text-sm text-gray-900 font-mono whitespace-pre-wrap">{output}</div>
+              <div className="text-sm text-gray-900 font-mono whitespace-pre-wrap">{terminalOutput}</div>
             </div>
           </div>
         </div>
