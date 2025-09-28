@@ -42,7 +42,9 @@ export interface WorkspaceContextType {
   // Code states
   starterCode: string
   setStarterCode: (code: string) => void
-  // Remove currentCode state, replace with ref-based functions
+  currentCode: string
+  setCurrentCode: (code: string) => void
+  // Ref-based functions for latest code
   setLatestCode: (code: string) => void
   getLatestCode: () => string
   
@@ -89,9 +91,9 @@ export interface ConceptMapAgentContext {
     totalTests: number;
     passedTests: number;
     failedTests: Array<{
-      input: any;
-      expected: any;
-      actual: any;
+      input: string;
+      expected: string;
+      actual: string;
       error?: string;
     }>;
   };

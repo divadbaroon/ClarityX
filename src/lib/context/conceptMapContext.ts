@@ -1,5 +1,22 @@
 import { ConceptMap, ConceptMapAgentContext } from "@/types"
 
+interface ConversationMessage {
+  role: string
+  content: string
+  timestamp?: string
+}
+
+interface TestResults {
+  totalTests: number
+  passedTests: number
+  failedTests: Array<{
+    input: string
+    expected: string
+    actual: string
+    error?: string
+  }>
+}
+
 export class ConceptMapContextBuilder {
   static buildUserPrompt(context: ConceptMapAgentContext): string {
     const currentTime = new Date().toISOString();
@@ -74,12 +91,12 @@ ANALYZE the evidence above and return the updated concept map following the spec
     methodTemplate: string,
     currentCode: string,
     terminalOutput: string,
-    conversationHistory: any[],
+    conversationHistory: ConversationMessage[],
     currentConceptMap: ConceptMap,
     sessionId: string,
     profileId: string,
     options: {
-      testResults?: any;
+      testResults?: TestResults;
     } = {}
   ): ConceptMapAgentContext {
     return {
@@ -89,7 +106,7 @@ ANALYZE the evidence above and return the updated concept map following the spec
       currentStudentCode: currentCode,
       terminalOutput,
       conversationHistory: conversationHistory.map(msg => ({
-        role: msg.role,
+        role: msg.role as 'user' | 'assistant',
         content: msg.content,
         timestamp: msg.timestamp || new Date().toISOString()
       })),

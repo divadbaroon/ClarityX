@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     console.log('🔍 Raw AI response:', result.text.substring(0, 200));
 
     // Extract JSON from the response
-    let jsonText = result.text.trim();
+    const jsonText = result.text.trim();
     
     // Try multiple ways to extract JSON
     let response;
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       try {
         response = JSON.parse(jsonMatch[1]);
         console.log('✅ Parsed from code block');
-      } catch (e) {
+      } catch {
         console.log('⚠️ Failed to parse from code block');
       }
     }
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         try {
           response = JSON.parse(objectMatch[0]);
           console.log('✅ Parsed from object match');
-        } catch (e) {
+        } catch {
           console.log('⚠️ Failed to parse from object match');
         }
       }
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       try {
         response = JSON.parse(jsonText);
         console.log('✅ Parsed whole response');
-      } catch (e) {
+      } catch {
         console.log('⚠️ Failed to parse whole response');
       }
     }

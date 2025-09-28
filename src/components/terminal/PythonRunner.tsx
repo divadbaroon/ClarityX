@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 
 type PyodideRunResult = unknown
 
@@ -80,7 +80,7 @@ export default function PythonRunner({
     loadPyodideScript()
   }, [onOutput])
 
-  const runPythonCode = async () => {
+  const runPythonCode = useCallback(async () => {
     const py = pyodideRef.current
     if (!pyodideLoaded || !py) {
       onOutput("Python environment is still loading...")
@@ -223,13 +223,13 @@ __captured_out + ("\\n" + __captured_err if __captured_err else "")
       setIsRunning(false)
       onOutput(output)
     }
-  }
+  }, [pyodideLoaded, code, testCases, setIsRunning, onOutput])
 
   useEffect(() => {
     if (isRunning && pyodideLoaded) {
       void runPythonCode()
     }
-  }, [isRunning, pyodideLoaded])
+  }, [isRunning, pyodideLoaded, runPythonCode])
 
   return null
 }

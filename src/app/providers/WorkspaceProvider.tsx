@@ -30,67 +30,67 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const latestCodeRef = useRef<string>("")
 
-useEffect(() => {
-  console.log("[WorkspaceContext] Component mounted, checking localStorage...")
-  try {
-    const savedCode = localStorage.getItem("cx_latest_code")
-    if (savedCode) {
-      console.log("[WorkspaceContext] Found saved code in localStorage, length:", savedCode.length)
-      console.log("[WorkspaceContext] Saved code preview:", savedCode.substring(0, 100))
-      latestCodeRef.current = savedCode
-    } else {
-      console.log("[WorkspaceContext] No saved code found in localStorage")
+  useEffect(() => {
+    console.log("[WorkspaceContext] Component mounted, checking localStorage...")
+    try {
+      const savedCode = localStorage.getItem("cx_latest_code")
+      if (savedCode) {
+        console.log("[WorkspaceContext] Found saved code in localStorage, length:", savedCode.length)
+        console.log("[WorkspaceContext] Saved code preview:", savedCode.substring(0, 100))
+        latestCodeRef.current = savedCode
+      } else {
+        console.log("[WorkspaceContext] No saved code found in localStorage")
+      }
+    } catch (error) {
+      console.error("[WorkspaceContext] Error reading from localStorage:", error)
     }
-  } catch (error) {
-    console.error("[WorkspaceContext] Error reading from localStorage:", error)
-  }
-}, []) // Empty dependency array = runs once on mount
+  }, []) // Empty dependency array = runs once on mount
 
   const setLatestCode = useCallback((code: string) => {
-  console.log("[WorkspaceContext] Attempting to save code to localStorage...")
-  console.log("[WorkspaceContext] Code length:", code.length)
-  console.log("[WorkspaceContext] Code preview:", code.substring(0, 100))
-  
-  latestCodeRef.current = code
-  
-  try {
-    localStorage.setItem("cx_latest_code", code)
+    console.log("[WorkspaceContext] Attempting to save code to localStorage...")
+    console.log("[WorkspaceContext] Code length:", code.length)
+    console.log("[WorkspaceContext] Code preview:", code.substring(0, 100))
     
-    // Verify it was saved
-    const saved = localStorage.getItem("cx_latest_code")
-    if (saved === code) {
-      console.log("[WorkspaceContext] ✓ Successfully saved to localStorage")
-    } else {
-      console.log("[WorkspaceContext] ✗ localStorage save verification failed")
+    latestCodeRef.current = code
+    
+    try {
+      localStorage.setItem("cx_latest_code", code)
+      
+      // Verify it was saved
+      const saved = localStorage.getItem("cx_latest_code")
+      if (saved === code) {
+        console.log("[WorkspaceContext] ✓ Successfully saved to localStorage")
+      } else {
+        console.log("[WorkspaceContext] ✗ localStorage save verification failed")
+      }
+    } catch (error) {
+      console.error("[WorkspaceContext] Failed to save to localStorage:", error)
     }
-  } catch (error) {
-    console.error("[WorkspaceContext] Failed to save to localStorage:", error)
-  }
-}, [])
+  }, [])
 
   const getLatestCode = useCallback(() => {
-  console.log("[WorkspaceContext] Attempting to retrieve code from localStorage...")
-  
-  if (latestCodeRef.current) {
-    console.log("[WorkspaceContext] Found in ref cache, length:", latestCodeRef.current.length)
-    return latestCodeRef.current
-  }
-  
-  try {
-    const v = localStorage.getItem("cx_latest_code")
-    if (v) {
-      console.log("[WorkspaceContext] Found in localStorage, length:", v.length)
-      latestCodeRef.current = v
-      return v
-    } else {
-      console.log("[WorkspaceContext] No code found in localStorage")
+    console.log("[WorkspaceContext] Attempting to retrieve code from localStorage...")
+    
+    if (latestCodeRef.current) {
+      console.log("[WorkspaceContext] Found in ref cache, length:", latestCodeRef.current.length)
+      return latestCodeRef.current
     }
-  } catch (error) {
-    console.error("[WorkspaceContext] Failed to read from localStorage:", error)
-  }
-  
-  return ""
-}, [])
+    
+    try {
+      const v = localStorage.getItem("cx_latest_code")
+      if (v) {
+        console.log("[WorkspaceContext] Found in localStorage, length:", v.length)
+        latestCodeRef.current = v
+        return v
+      } else {
+        console.log("[WorkspaceContext] No code found in localStorage")
+      }
+    } catch (error) {
+      console.error("[WorkspaceContext] Failed to read from localStorage:", error)
+    }
+    
+    return ""
+  }, [])
 
   const setProblem = useCallback((value: LeetCodeProblem | null) => {
     console.log("[WorkspaceContext] Problem changed:", value)
@@ -175,7 +175,7 @@ useEffect(() => {
       }
       setTerminalOutput("")
     }
-  }, [problem, setTaskTitle, setTaskDescription, setExamples, setTestCases, setStarterCode, setCurrentCode, setTerminalOutput])
+  }, [problem, setTaskTitle, setTaskDescription, setExamples, setTestCases, setStarterCode, setCurrentCode, setTerminalOutput, getLatestCode])
 
   const value = useMemo<WorkspaceContextType>(() => ({
     problem,

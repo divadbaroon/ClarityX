@@ -32,6 +32,13 @@ interface ConceptMap {
   [conceptName: string]: ConceptMapEntry
 }
 
+interface TestResult {
+  input: string
+  expected: string
+  actual: string
+  error: string
+}
+
 export default function LeetCodeIDE() {
   const params = useParams()
   
@@ -98,31 +105,6 @@ export default function LeetCodeIDE() {
     return () => clearInterval(interval)
   }, [setLatestCode])
 
-  // Update concept map when code changes significantly
-  useEffect(() => {
-    const codeChanged = lastCodeRef.current && 
-      Math.abs(code.length - lastCodeRef.current.length) > 50
-
-    if (codeChanged && problem && !isUpdatingConceptMap) {
-      console.log('[ConceptMap] Significant code change detected')
-      updateConceptMap(code, terminalOutput)
-      lastCodeRef.current = code
-    }
-  }, [code, problem, terminalOutput])
-
-  // Update concept map when terminal output changes (test results)
-  useEffect(() => {
-    const outputChanged = terminalOutput && 
-      terminalOutput !== lastOutputRef.current &&
-      terminalOutput.includes('Test Case')
-
-    if (outputChanged && problem && !isUpdatingConceptMap) {
-      console.log('[ConceptMap] Test results detected')
-      updateConceptMap(code, terminalOutput)
-      lastOutputRef.current = terminalOutput
-    }
-  }, [terminalOutput, code, problem])
-
   const updateConceptMap = useCallback(async (currentCode: string, output: string) => {
     if (!problem) return
     
@@ -158,20 +140,46 @@ export default function LeetCodeIDE() {
         console.log('📊 [ConceptMap] Full Update:', JSON.stringify(data.updatedConceptMap, null, 2))
         
         // Log each concept individually
-        Object.entries(data.updatedConceptMap).forEach(([concept, details]: [string, any]) => {
+        Object.entries(data.updatedConceptMap).forEach(([concept, details]) => {
+          const entry = details as ConceptMapEntry
           console.log(`📈 [${concept}]:`, {
-            understanding: `${(details.understandingLevel * 100).toFixed(0)}%`,
-            confidence: `${(details.confidenceInAssessment * 100).toFixed(0)}%`,
-            reasoning: details.reasoning
+            understanding: `${(entry.understandingLevel * 100).toFixed(0)}%`,
+            confidence: `${(entry.confidenceInAssessment * 100).toFixed(0)}%`,
+            reasoning: entry.reasoning
           })
         })
       }
-          } catch (error) {
+    } catch (error) {
       console.error('[ConceptMap] Error:', error)
     } finally {
       setIsUpdatingConceptMap(false)
     }
   }, [problem, conceptMap])
+
+  // Update concept map when code changes significantly
+  useEffect(() => {
+    const codeChanged = lastCodeRef.current && 
+      Math.abs(code.length - lastCodeRef.current.length) > 50
+
+    if (codeChanged && problem && !isUpdatingConceptMap) {
+      console.log('[ConceptMap] Significant code change detected')
+      updateConceptMap(code, terminalOutput)
+      lastCodeRef.current = code
+    }
+  }, [code, problem, terminalOutput, isUpdatingConceptMap, updateConceptMap])
+
+  // Update concept map when terminal output changes (test results)
+  useEffect(() => {
+    const outputChanged = terminalOutput && 
+      terminalOutput !== lastOutputRef.current &&
+      terminalOutput.includes('Test Case')
+
+    if (outputChanged && problem && !isUpdatingConceptMap) {
+      console.log('[ConceptMap] Test results detected')
+      updateConceptMap(code, terminalOutput)
+      lastOutputRef.current = terminalOutput
+    }
+  }, [terminalOutput, code, problem, isUpdatingConceptMap, updateConceptMap])
 
   function extractMethodName(starterCode: string): string {
     const match = starterCode.match(/def\s+(\w+)\s*\(/)
@@ -184,7 +192,7 @@ export default function LeetCodeIDE() {
     const lines = output.split('\n')
     let totalTests = 0
     let passedTests = 0
-    const failedTests: any[] = []
+    const failedTests: TestResult[] = []
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
@@ -212,13 +220,7 @@ export default function LeetCodeIDE() {
     return totalTests > 0 ? { totalTests, passedTests, failedTests } : undefined
   }
 
-  useEffect(() => {
-    if (params.problem) {
-      fetchProblem(params.problem as string)
-    }
-  }, [params.problem])
-
-  const fetchProblem = async (problemId: string) => {
+  const fetchProblem = useCallback(async (problemId: string) => {
     try {
       setLoading(true)
       const { problem: fetchedProblem, error } = await fetchProblemById(problemId)
@@ -244,7 +246,13 @@ export default function LeetCodeIDE() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [setProblem, getLatestCode, setLatestCode])
+
+  useEffect(() => {
+    if (params.problem) {
+      fetchProblem(params.problem as string)
+    }
+  }, [params.problem, fetchProblem])
 
   const runTests = async () => {
     if (isRunning) return
