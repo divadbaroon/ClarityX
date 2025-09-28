@@ -1,3 +1,8 @@
+export interface TestCase {
+  input: string
+  output: string
+}
+
 export interface LeetCodeProblem {
   id: string
   task_id: string
@@ -10,9 +15,8 @@ export interface LeetCodeProblem {
   completion: string
   entry_point: string
   test: string
-  input_output: any
+  input_output: TestCase[] 
   created_at: string
 }
-
 export type DifficultyFilter = "all" | "Easy" | "Medium" | "Hard"
 export type TagFilter = "all" | string
