@@ -50,81 +50,79 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
         isScrolled ? "bg-white/90 backdrop-blur-xl shadow-sm" : "bg-white/90 backdrop-blur-xl"
       } border-b border-gray-200`}
     >
-      <div className="px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className={`flex items-center justify-between ${isProblemsSection ? 'py-4' : 'py-4'}`}>
-            {/* Logo and Problems Navigation */}
-            <div className="flex items-center space-x-6">
-              <Link
-                href="/"
-                className="text-xl font-bold text-black hover:opacity-80 transition-all duration-300"
+      <div className="px-4 lg:px-6 xl:px-8">
+        <div className={`flex items-center justify-between ${isProblemsSection ? 'py-4' : 'py-4'}`}>
+          {/* Logo and Problems Navigation - Left Side */}
+          <div className="flex items-center space-x-6">
+            <Link
+              href="/"
+              className="text-xl font-bold text-black hover:opacity-80 transition-all duration-300"
+            >
+              Clarity
+              <span
+                className="text-white font-bold mx-1 hover:scale-110 transition-transform duration-300 inline-block"
+                style={{ WebkitTextStroke: "1px black" }}
               >
-                Clarity
-                <span
-                  className="text-white font-bold mx-1 hover:scale-110 transition-transform duration-300 inline-block"
-                  style={{ WebkitTextStroke: "1px black" }}
-                >
-                  X
-                </span>
-              </Link>
-              
-              {/* Only show Problems navigation when authenticated */}
-              {user && (
-                <>
-                  <div className="h-6 w-px bg-gray-300"></div>
-                  <nav className="hidden lg:flex space-x-8">
-                    <Link
-                      href="/problems"
-                      className={`text-sm font-medium ${
-                        pathname === '/problems' 
-                          ? 'text-black border-b-2 border-black' 
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
+                X
+              </span>
+            </Link>
+            
+            {/* Only show Problems navigation when authenticated */}
+            {user && (
+              <>
+                <div className="h-6 w-px bg-gray-300"></div>
+                <nav className="hidden lg:flex space-x-8">
+                  <Link
+                    href="/problems"
+                    className={`text-sm font-medium ${
+                      pathname === '/problems' 
+                        ? 'text-black border-b-2 border-black' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Problems
+                  </Link>
+                  {isProblemsSection && (
+                    <button 
+                      className="text-sm font-medium text-gray-500 hover:text-gray-700 cursor-pointer"
                     >
-                      Problems
-                    </Link>
-                    {isProblemsSection && (
-                      <button 
-                        className="text-sm font-medium text-gray-500 hover:text-gray-700 cursor-pointer"
-                      >
-                        Progress
-                      </button>
-                    )}
-                  </nav>
-                </>
-              )}
-            </div>
+                      Progress
+                    </button>
+                  )}
+                </nav>
+              </>
+            )}
+          </div>
 
-            {/* Desktop Navigation - Home Page */}
-            <div className="hidden lg:flex items-center space-x-8">
-              {isHomePage && (
-                <>
-                  <button
-                    onClick={() => scrollToSection("features")}
-                    className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
-                  >
-                    Features
-                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
-                  </button>
-                  <button
-                    onClick={() => scrollToSection("demo")}
-                    className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
-                  >
-                    Demo
-                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
-                  </button>
-                  <button
-                    onClick={() => scrollToSection("contact")}
-                    className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
-                  >
-                    Contact
-                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
-                  </button>
-                </>
-              )}
+          {/* Center Navigation - Home Page */}
+          {isHomePage && (
+            <div className="hidden lg:flex items-center space-x-8 absolute left-1/2 transform -translate-x-1/2">
+              <button
+                onClick={() => scrollToSection("features")}
+                className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
+              >
+                Features
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
+              </button>
+              <button
+                onClick={() => scrollToSection("demo")}
+                className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
+              >
+                Demo
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
+              </button>
+              <button
+                onClick={() => scrollToSection("contact")}
+                className="text-sm text-gray-600 hover:text-black transition-colors duration-200 font-medium cursor-pointer relative group"
+              >
+                Contact
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-black transform transition-transform duration-200 scale-x-0 group-hover:scale-x-100"></span>
+              </button>
             </div>
+          )}
 
-            {/* Desktop CTA or Account Icon */}
+          {/* Right Side - CTA or Account Icon */}
+          <div className="flex items-center space-x-4">
             <div className="hidden lg:flex items-center space-x-4">
               {user ? (
                 <DropdownMenu>
@@ -188,7 +186,7 @@ export default function ClarityXNavigation({ user }: ClarityXNavigationProps) {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="lg:hidden bg-white/95 backdrop-blur-xl border-b border-gray-200 px-6 py-4 shadow-lg">
+        <div className="lg:hidden bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-4 shadow-lg">
           <div className="flex flex-col space-y-4">
             {user && (
               <>
