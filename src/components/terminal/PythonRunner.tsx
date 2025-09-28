@@ -2,11 +2,19 @@
 
 import { useEffect, useRef, useState } from "react"
 
-declare global {
-  interface Window {
-    pyodide: any
-    loadPyodide: any
-  }
+type PyodideRunResult = unknown
+
+interface LoadPyodideOptions {
+  indexURL: string
+}
+
+interface Pyodide {
+  runPython: (code: string) => PyodideRunResult
+}
+
+interface PyodideWindow extends Window {
+  pyodide?: Pyodide
+  loadPyodide?: (opts: LoadPyodideOptions) => Promise<Pyodide>
 }
 
 interface PythonRunnerProps {
@@ -17,14 +25,10 @@ interface PythonRunnerProps {
   setIsRunning: (running: boolean) => void
 }
 
-/**
- * Normalize a LeetCode-style input string into valid Python assignments.
- */
 function normalizeInputAssignments(raw: string): string {
   return raw.replace(/,\s*(?=[A-Za-z_]\w*\s*=)/g, "\n")
 }
 
-/** Escape triple single quotes for embedding into a Python triple-quoted string. */
 function pyTripleQuoteEscape(s: string): string {
   return s.replace(/'''/g, "\\'\\'\\'")
 }
@@ -36,13 +40,15 @@ export default function PythonRunner({
   isRunning,
   setIsRunning,
 }: PythonRunnerProps) {
-  const pyodideRef = useRef<any>(null)
+  const pyodideRef = useRef<Pyodide | null>(null)
   const [pyodideLoaded, setPyodideLoaded] = useState(false)
 
   useEffect(() => {
     const loadPyodideScript = async () => {
-      if ((window as any).pyodide) {
-        pyodideRef.current = (window as any).pyodide
+      const w = window as PyodideWindow
+
+      if (w.pyodide) {
+        pyodideRef.current = w.pyodide
         setPyodideLoaded(true)
         return
       }
@@ -54,14 +60,18 @@ export default function PythonRunner({
 
       script.onload = async () => {
         try {
-          const pyodide = await (window as any).loadPyodide({
+          if (!w.loadPyodide) {
+            throw new Error("window.loadPyodide is not available after script load.")
+          }
+          const pyodide = await w.loadPyodide({
             indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
           })
           pyodideRef.current = pyodide
-          ;(window as any).pyodide = pyodide
+          w.pyodide = pyodide
           setPyodideLoaded(true)
-        } catch (error) {
-          console.error("Failed to load Pyodide:", error)
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error)
+          console.error("Failed to load Pyodide:", message)
           onOutput("Error loading Python environment")
         }
       }
@@ -71,7 +81,8 @@ export default function PythonRunner({
   }, [onOutput])
 
   const runPythonCode = async () => {
-    if (!pyodideLoaded || !pyodideRef.current) {
+    const py = pyodideRef.current
+    if (!pyodideLoaded || !py) {
       onOutput("Python environment is still loading...")
       return
     }
@@ -80,9 +91,7 @@ export default function PythonRunner({
     let output = ""
 
     try {
-      // Execute the user's code (defines Solution / function) with postponed annotations,
-      // so type hints are treated as strings and don't require `typing` imports.
-      pyodideRef.current.runPython(`from __future__ import annotations\n` + code)
+      py.runPython(`from __future__ import annotations\n${code}`)
 
       let allTestsPassed = true
       output += "Running test cases...\n\n"
@@ -94,45 +103,33 @@ export default function PythonRunner({
         const normalizedInput = normalizeInputAssignments(testCase.input)
 
         try {
-          // Python snippet that:
-          //  - parses the user's source with AST
-          //  - finds either the first function or the first method on Solution
-          //  - extracts ordered parameter names (skipping self)
-          //  - executes normalized inputs
-          //  - calls the target with args pulled from locals() IN ORDER
           const testCode = `
 import ast, re
 
 source = '''${escapedSource}'''
 tree = ast.parse(source)
 
-# Discover call target and param names via AST
 call_is_method = False
 func_name = None
 param_names = []
 
 for node in ast.walk(tree):
     if isinstance(node, ast.ClassDef) and node.name == "Solution":
-        # Find the first function (method) in the class
         for b in node.body:
             if isinstance(b, ast.FunctionDef):
                 call_is_method = True
                 func_name = b.name
-                # Positional args (skip 'self' if present)
                 for arg in b.args.args:
                     if arg.arg == "self":
                         continue
                     param_names.append(arg.arg)
-                # Handle *args
                 if b.args.vararg is not None:
                     param_names.append(b.args.vararg.arg)
-                # We ignore kwonly and **kwargs for this simple runner
                 break
         if call_is_method:
             break
 
 if not call_is_method and func_name is None:
-    # Fall back: first top-level function
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             func_name = node.name
@@ -142,7 +139,6 @@ if not call_is_method and func_name is None:
                 param_names.append(node.args.vararg.arg)
             break
 
-# Execute the input assignments so names exist in locals()
 ${normalizedInput}
 
 result = None
@@ -169,8 +165,7 @@ elif func_name is not None:
 print(result)
 `
 
-          // Redirect stdout/stderr safely; always restore.
-          pyodideRef.current.runPython(`
+          py.runPython(`
 import sys
 from io import StringIO
 __old_stdout = sys.stdout
@@ -187,14 +182,12 @@ finally:
 __captured_out + ("\\n" + __captured_err if __captured_err else "")
 `)
 
-          const resultCombined = String(
-            pyodideRef.current.runPython(
-              `__captured_out + ("\\n" + __captured_err if __captured_err else "")`
-            )
+          const resultCombined = py.runPython(
+            `__captured_out + ("\\n" + __captured_err if __captured_err else "")`
           )
 
           const expected = testCase.output
-          const resultStr = resultCombined.trim()
+          const resultStr = String(resultCombined ?? "").trim()
 
           const normalizeOutput = (str: string) =>
             str.replace(/[\[\]"']/g, "").replace(/\s+/g, " ").trim()
@@ -211,19 +204,21 @@ __captured_out + ("\\n" + __captured_err if __captured_err else "")
             output += `  Expected: ${expected}\n`
             output += `  Got: ${resultStr}\n\n`
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           allTestsPassed = false
+          const message = error instanceof Error ? error.message : String(error)
           output += `✗ Test Case ${i + 1}: ERROR\n`
           output += `  Input: ${testCase.input}\n`
-          output += `  Error: ${error.message || error}\n\n`
+          output += `  Error: ${message}\n\n`
         }
       }
 
       output += allTestsPassed
         ? "🎉 All test cases passed!"
         : "⚠️ Some test cases failed. Check your solution."
-    } catch (error: any) {
-      output = `Error executing code:\n${error.message || error}`
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      output = `Error executing code:\n${message}`
     } finally {
       setIsRunning(false)
       onOutput(output)
@@ -232,9 +227,8 @@ __captured_out + ("\\n" + __captured_err if __captured_err else "")
 
   useEffect(() => {
     if (isRunning && pyodideLoaded) {
-      runPythonCode()
+      void runPythonCode()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRunning, pyodideLoaded])
 
   return null
