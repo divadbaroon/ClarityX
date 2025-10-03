@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
+import { createPortal } from 'react-dom'
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Play, User, X, Circle } from "lucide-react"
@@ -19,7 +20,6 @@ import { javascript } from "@codemirror/lang-javascript"
 import { fetchProblemById } from "@/lib/actions/problems"
 import PythonRunner from "@/components/terminal/PythonRunner"
 import { useWorkspaceContext } from '@/app/providers/WorkspaceProvider'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // Concept Map Types
 interface ConceptMapEntry {
@@ -31,6 +31,13 @@ interface ConceptMapEntry {
 
 interface ConceptMap {
   [conceptName: string]: ConceptMapEntry
+}
+
+interface SelectedNodeData {
+  name: string
+  understanding: number
+  confidence: number
+  reasoning: string
 }
 
 export default function LeetCodeIDE() {
@@ -69,6 +76,8 @@ export default function LeetCodeIDE() {
   const [isDraggingHorizontal, setIsDraggingHorizontal] = useState(false)
   const [isDraggingVertical, setIsDraggingVertical] = useState(false)
   const [showVisualization, setShowVisualization] = useState(false)
+  const [isGraphReady, setIsGraphReady] = useState(false)
+  const [selectedNode, setSelectedNode] = useState<SelectedNodeData | null>(null)
 
   // Concept Map State
   const [conceptMap, setConceptMap] = useState<ConceptMap>({})
@@ -79,6 +88,127 @@ export default function LeetCodeIDE() {
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
+
+  // 3D Graph refs
+  const graphRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showVisualization || !graphRef.current || Object.keys(conceptMap).length === 0) {
+      setIsGraphReady(false)
+      return
+    }
+
+    const script = document.createElement("script")
+    script.src = "https://unpkg.com/3d-force-graph"
+    script.async = true
+
+    script.onload = () => {
+      if (!graphRef.current || !(window as any).ForceGraph3D) return
+
+      graphRef.current.innerHTML = ""
+
+      const graphData = {
+        nodes: Object.entries(conceptMap).map(([name, data]: [string, ConceptMapEntry]) => ({
+          id: name,
+          name,
+          val: (data.confidenceInAssessment * 40) + 10, // Node size based on confidence (10-50 range)
+          understanding: data.understandingLevel,
+          confidence: data.confidenceInAssessment,
+          // Calculate blue color based on understanding level
+          color: data.understandingLevel === 0 
+            ? '#f0f9ff'  // Almost white for 0 understanding
+            : data.understandingLevel < 0.2 
+            ? '#dbeafe'  // Very light blue
+            : data.understandingLevel < 0.4
+            ? '#bfdbfe'  // Light blue
+            : data.understandingLevel < 0.6
+            ? '#93c5fd'  // Medium light blue
+            : data.understandingLevel < 0.8
+            ? '#60a5fa'  // Medium blue
+            : data.understandingLevel < 0.95
+            ? '#3b82f6'  // Strong blue
+            : '#2563eb'  // Deep blue for full understanding
+        })),
+        links: []
+      }
+
+      const Graph = (window as any).ForceGraph3D()(graphRef.current)
+        .graphData(graphData)
+        .backgroundColor("#f9fafb")
+        .nodeLabel((node: any) => `
+          <div style="text-align:center;color:#111827;background:rgba(255,255,255,0.95);padding:8px;border-radius:4px;border:1px solid #e5e7eb;">
+            <div style="font-weight:bold;">${node.name}</div>
+            <div style="color:#6b7280;">Understanding: ${(node.understanding * 100).toFixed(0)}%</div>
+            <div style="font-size:.8em;color:#9ca3af;">Confidence: ${(node.confidence * 100).toFixed(0)}%</div>
+            <div style="font-size:.7em;color:#9ca3af;margin-top:4px;">Node size: confidence level</div>
+          </div>
+        `)
+        .nodeColor((node: any) => {
+          if (selectedNode?.name === node.name) {
+            return node.color
+          }
+          return node.color
+        })
+        .nodeVal((node: any) => node.val)
+        .nodeOpacity(0.9)
+        .enableNodeDrag(false)
+        .enableNavigationControls(true)
+        .showNavInfo(false)
+        .onNodeClick((node: any) => {
+          const conceptData = conceptMap[node.name]
+          setSelectedNode({
+            name: node.name,
+            understanding: node.understanding,
+            confidence: node.confidence,
+            reasoning: conceptData?.reasoning || ''
+          })
+          
+          const distance = 200
+          const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z)
+          const xOffset = -100
+          
+          Graph.cameraPosition(
+            { 
+              x: (node.x * distRatio) + xOffset, 
+              y: node.y * distRatio, 
+              z: node.z * distRatio 
+            },
+            node,
+            1500
+          )
+          
+          Graph.nodeColor(Graph.nodeColor())
+        })
+
+      setTimeout(() => {
+        setIsGraphReady(true)
+      }, 500)
+
+      // Autorotate controls
+      const controls = Graph.controls()
+      controls.autoRotate = true
+      controls.autoRotateSpeed = 0.5
+
+      const pauseAuto = () => { controls.autoRotate = false; clearTimeout((pauseAuto as any)._t) }
+      const resumeAuto = () => { (pauseAuto as any)._t = setTimeout(() => { controls.autoRotate = true }, 1500) }
+
+      const el = graphRef.current
+      ;["mousedown", "wheel", "touchstart", "touchmove"].forEach(evt =>
+        el.addEventListener(evt, pauseAuto, { passive: true })
+      )
+      ;["mouseup", "mouseleave", "touchend"].forEach(evt =>
+        el.addEventListener(evt, resumeAuto, { passive: true })
+      )
+    }
+
+    document.body.appendChild(script)
+
+    return () => {
+      if (script.parentNode) script.parentNode.removeChild(script)
+      if (graphRef.current) graphRef.current.innerHTML = ""
+      setIsGraphReady(false)
+    }
+  }, [showVisualization, conceptMap, selectedNode])
 
   // When problem loads, use starter code if no saved code exists
   useEffect(() => {
@@ -130,7 +260,6 @@ export default function LeetCodeIDE() {
     
     setIsUpdatingConceptMap(true)
     try {
-      // Parse test results from output
       const testResults = parseTestResults(output)
       
       const context = {
@@ -142,7 +271,7 @@ export default function LeetCodeIDE() {
         conversationHistory: [],
         currentConceptMap: conceptMap,
         sessionId: 'session-' + Date.now(),
-        profileId: 'user-id', // Replace with actual user ID
+        profileId: 'user-id',
         testResults
       }
 
@@ -220,7 +349,6 @@ export default function LeetCodeIDE() {
       } else {
         setProblem(fetchedProblem)
         
-        // Check for saved code first
         const savedCode = getLatestCode()
         if (savedCode) {
           setCode(savedCode)
@@ -534,7 +662,12 @@ export default function LeetCodeIDE() {
         <Button
           size="sm"
           className="fixed top-6 right-28 z-50 bg-black text-white hover:bg-gray-800 rounded-full px-4 py-1.5 text-xs font-medium transition-all duration-200 cursor-pointer shadow-md hover:shadow-lg flex items-center gap-1.5"
-          onClick={() => setShowVisualization(true)}
+          onClick={() => {
+            if (Object.keys(conceptMap).length > 0) {
+              setShowVisualization(true)
+            }
+          }}
+          disabled={Object.keys(conceptMap).length === 0}
         >
           Visualize Understanding
         </Button>
@@ -691,77 +824,113 @@ export default function LeetCodeIDE() {
         </div>
       </div>
 
-     {/* Visualization Modal */}
-<Dialog open={showVisualization} onOpenChange={setShowVisualization}>
-  <DialogContent className="max-w-6xl h-[80vh] bg-gray-900 border-gray-800">
-    <DialogHeader>
-      <DialogTitle className="text-white text-lg">Concept Understanding Map</DialogTitle>
-    </DialogHeader>
-    <div className="flex-1 overflow-auto p-4">
-      {Object.keys(conceptMap).length > 0 ? (
-        <div className="flex gap-6 h-full">
-          {/* Left side - Concept Map */}
-          <div className="flex-1 overflow-auto">
-            <h3 className="text-gray-400 text-sm font-medium mb-3">Understanding Levels</h3>
-            <div className="grid grid-cols-1 gap-3">
-              {Object.entries(conceptMap).map(([concept, data]: [string, ConceptMapEntry]) => (
-                <div 
-                  key={concept}
-                  className="bg-gray-800 rounded-lg p-3 border border-gray-700"
-                  style={{
-                    opacity: 0.5 + (data.confidenceInAssessment * 0.5),
-                    borderColor: data.understandingLevel > 0.7 ? '#10b981' : 
-                                 data.understandingLevel > 0.4 ? '#f59e0b' : '#ef4444'
-                  }}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-white font-medium text-sm">{concept}</h4>
-                    <span className={`text-sm font-bold ${
-                      data.understandingLevel > 0.7 ? 'text-green-400' :
-                      data.understandingLevel > 0.4 ? 'text-yellow-400' :
-                      'text-red-400'
-                    }`}>
-                      {(data.understandingLevel * 100).toFixed(0)}%
-                    </span>
+      {/* Visualization Modal */}
+      {showVisualization && createPortal(
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/20 z-40"
+            onClick={() => {
+              setShowVisualization(false)
+              setSelectedNode(null)
+            }}
+          />
+          
+          {/* Modal Content */}
+          <div className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-w-7xl w-[90vw] h-[80vh] bg-white border border-gray-200 rounded-lg shadow-xl p-6 z-50">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-black">Understanding Visualization</h2>
+              <button
+                onClick={() => {
+                  setShowVisualization(false)
+                  setSelectedNode(null)
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Legend */}
+            <div className="flex items-center gap-6 text-xs text-gray-600 mb-2">
+              <div className="flex items-center gap-2">
+                <span>Understanding:</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded-full bg-blue-100"></div>
+                  <span>Low</span>
+                  <div className="w-4 h-4 rounded-full bg-blue-300"></div>
+                  <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+                  <span>High</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>Node Size = Confidence Level</span>
+              </div>
+            </div>
+            
+            {/* Main Content Area */}
+            <div className="flex gap-4 h-[calc(100%-100px)]">
+              {/* Graph Container */}
+              <div className={`${selectedNode ? 'w-[65%]' : 'w-full'} h-full bg-gray-50 rounded-lg overflow-hidden border border-gray-200 transition-all duration-300`}>
+                <div ref={graphRef} className="w-full h-full" />
+              </div>
+              
+              {/* Node Details Panel */}
+              {selectedNode && (
+                <div className="w-[35%] h-full bg-white border border-gray-200 rounded-lg p-4 overflow-y-auto">
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="font-bold text-lg text-black">{selectedNode.name}</h3>
+                    <button
+                      onClick={() => setSelectedNode(null)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Confidence:</span>
-                      <div className="flex-1 bg-gray-700 rounded-full h-1.5">
-                        <div 
-                          className="bg-blue-500 h-1.5 rounded-full"
-                          style={{ width: `${data.confidenceInAssessment * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-400">
-                        {(data.confidenceInAssessment * 100).toFixed(0)}%
-                      </span>
+                  
+                  {/* Understanding Meter */}
+                  <div className="mb-6">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-600">Understanding</span>
+                      <span className="font-medium text-black">{(selectedNode.understanding * 100).toFixed(0)}%</span>
                     </div>
-                    <p className="text-xs text-gray-300 mt-1 line-clamp-2">{data.reasoning}</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 rounded-full h-2 transition-all duration-500"
+                        style={{ width: `${selectedNode.understanding * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Confidence Meter */}
+                  <div className="mb-6">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-600">Assessment Confidence</span>
+                      <span className="font-medium text-black">{(selectedNode.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-gray-600 rounded-full h-2 transition-all duration-500"
+                        style={{ width: `${selectedNode.confidence * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Analysis */}
+                  <div>
+                    <h4 className="font-medium text-black mb-2">Analysis</h4>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {selectedNode.reasoning || "AI assessment of understanding based on code patterns and test results."}
+                    </p>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
-
-          {/* Right side - Code at time of assessment */}
-          <div className="flex-1 overflow-auto">
-            <h3 className="text-gray-400 text-sm font-medium mb-3">Your Code (Current)</h3>
-            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 h-full">
-              <pre className="text-xs text-gray-300 font-mono overflow-auto">
-                <code>{code || "// No code written yet"}</code>
-              </pre>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-gray-400">No concept map data yet. Write some code and run tests to see your understanding levels.</p>
-        </div>
+        </>,
+        document.body
       )}
-    </div>
-  </DialogContent>
-</Dialog>
     </>
   )
 }
